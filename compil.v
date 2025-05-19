@@ -245,19 +245,16 @@ Theorem semantic_preserved_by_assign : forall (str: string) (yexpr: YExpr),
   semantic_preserved (YAssign str yexpr).
 Proof. Admitted.
 
-Inductive well_defined (yprog : YStmt)  :=
-  | WellDef_Skip : 
-      yprog = YSkip -> 
-      well_defined yprog
-  | WellDef_Assign : forall (str : string) (yexpr : YExpr),
-      yprog = (YAssign str yexpr) -> 
-      well_defined yprog
-  | WellDef_Seq_Skip : forall (yprog2 : YStmt),
-      yprog = (YSeq YSkip yprog2) -> 
-      well_defined yprog
-  | WellDef_Seq_Assign : forall (yprog2 : YStmt) (str : string) (yexpr : YExpr),
-      yprog = (YSeq (YAssign str yexpr) yprog) -> 
-      well_defined yprog.
+Inductive well_defined : YStmt -> Prop  :=
+  | WellDef_Skip : well_defined YSkip
+  | WellDef_Assign : forall (str : string) (yexpr : YExpr), well_defined (YAssign str yexpr)
+  | WellDef_Seq_Skip : forall (yprog : YStmt),
+      well_defined yprog ->
+      well_defined (YSeq YSkip yprog)
+  | WellDef_Seq_Assign : forall (yprog : YStmt) (str : string) (yexpr : YExpr),
+      well_defined yprog ->
+      well_defined (YSeq (YAssign str yexpr) yprog)
+.
 
 Theorem semantic_preserved_by_skip :
   semantic_preserved YSkip.
@@ -395,17 +392,6 @@ Proof.
           apply (IHxprog1 (s ⊢> n; env0) stack) in H.
           rewrite <- helper5 in H. assumption. Qed.
 
-Theorem xprog_concat_is_like_piping_outputs : 
-  forall (xprog1 xprog2 : XProgram) (env0 env1 env2 env3 : Env),
-  XMultiExec (xprog1, empty_stack, env0) ([], empty_stack, env1) ->
-  XMultiExec (xprog2, empty_stack, env1) ([], empty_stack, env2) ->
-  XMultiExec (xprog1 ++ xprog2, empty_stack, env0) ([], empty_stack, env3) ->
-  env2 = env3.
-Proof.
-  intros.
-  apply
-  
-
 Theorem semantic_preserved_by_seq : forall (yprog1 yprog2 : YStmt),
   semantic_preserved yprog1 ->
   semantic_preserved yprog2 ->
@@ -444,17 +430,32 @@ Proof.
     * assumption.
     * assumption.
     * assumption. }
+  assert (XMultiExec (xprog, empty_stack, env0) ([], empty_stack, env1')).
+  { rewrite <- H1. apply (xprog_concat_is_like_piping_outputs xprog1 xprog2 env0 env0' env1' empty_stack).
+    * assumption. * assumption. }
   assert (env1' = env2). {
-  apply (xprog_concat_is_like_piping_outputs
-            xprog1 xprog2 env0 env0' env1' env2).
+  symmetry.
+  apply (xexec_finalstep_is_unique xprog env0 env2 env1' empty_stack).
   * assumption.
-  * assumption.
-  * rewrite -> H1. assumption. }
-  subst. reflexivity. Qed.
+  * assumption. }
+  rewrite <- H. assumption. Qed. 
 
+Theorem well_defined_applies_to_sub_seq_left : forall (yprog1 yprog2 : YStmt),
+  well_defined (YSeq yprog1 yprog2) ->
+  well_defined yprog1.
+Proof. 
+  intros. inversion H.
+  - constructor.
+  - constructor. Qed.
 
+Theorem well_defined_applies_to_sub_seq_right : forall (yprog1 yprog2 : YStmt),
+  well_defined (YSeq yprog1 yprog2) ->
+  well_defined yprog2.
+Proof. 
+  intros. inversion H.
+  - assumption.
+  - assumption. Qed.
 
-(*
 Theorem semantic_preserved_always : forall (yprog : YStmt),
   well_defined yprog ->
   semantic_preserved yprog.
@@ -463,10 +464,8 @@ Proof.
   - apply semantic_preserved_by_skip.
   - apply semantic_preserved_by_assign.
   - remember (YSeq yprog1 yprog2) as yprogSeq.
-    apply semantic_preserved_by_seq with yprog1 yprog2.
-    * assumption.
-    * assumption. Qed.
-
-*)
-
+    rewrite -> HeqyprogSeq in *.
+    assert (well_defined yprog1). { apply (well_defined_applies_to_sub_seq_left yprog1 yprog2 H). }
+    assert (well_defined yprog2). { apply (well_defined_applies_to_sub_seq_right yprog1 yprog2 H). }
+    apply (semantic_preserved_by_seq yprog1 yprog2 (IHyprog1 H0) (IHyprog2 H1)). Qed.
 
