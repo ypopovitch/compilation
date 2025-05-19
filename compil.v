@@ -298,16 +298,9 @@ Lemma mul_cannot_be_used_with_one_number :
   XMultiExec (XMul :: xprog1, [n], env1)  (xprog2, stack, env2) -> False.
 Proof. Admitted.
 
-Lemma helper1 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack) (n1 n2 : nat),
-XMultiExec (XAdd :: xprog1, n1 :: n2 :: stack1, env1) (xprog2, stack2, env2)
-->
-XMultiExec (xprog1, (n1 + n2) :: stack1, env1) (xprog2, stack2, env2).
-Proof. Admitted.
-
-Lemma helper2 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack) (n1 n2 : nat),
-XMultiExec (XMul :: xprog1, n1 :: n2 :: stack1, env1) (xprog2, stack2, env2)
-->
-XMultiExec (xprog1, (n1 * n2) :: stack1, env1) (xprog2, stack2, env2).
+Lemma store_cannot_be_used_with_empty_stack : 
+  forall (xprog1 xprog2 : XProgram) (stack : XStack) (env1 env2 : Env) (str : string),
+  XMultiExec ((XStore str) :: xprog1, empty_stack, env1)  (xprog2, stack, env2) -> False.
 Proof. Admitted.
 
 Lemma helper3 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack) (n : nat),
@@ -316,18 +309,61 @@ XMultiExec ((XLoadConst n) :: xprog1, stack1, env1) (xprog2, stack2, env2)
 XMultiExec (xprog1, n :: stack1, env1) (xprog2, stack2, env2).
 Proof. Admitted.
 
-Lemma helper4 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack) (str : string) (n : nat),
-(XMultiExec ((XLoadAdrs str) :: xprog1, stack1, env1) (xprog2, stack2, env2) /\ env1 str = Some n)
+Lemma helper4 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack) (str : string),
+XMultiExec ((XLoadAdrs str) :: xprog1, stack1, env1) (xprog2, stack2, env2) 
 <->
-(XMultiExec (xprog1, n :: stack1, env1) (xprog2, stack2, env2) /\ env1 str = Some n).
+exists n, XMultiExec (xprog1, n :: stack1, env1) (xprog2, stack2, env2) /\ (env1 str = Some n).
 Proof. Admitted.
 
-Theorem test : forall (xprog1 xprog2 : XProgram) (env0 env1 env2 : Env) (stack : XStack),
+Lemma helper5 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack) (str : string) (n : nat),
+XMultiExec ((XStore str) :: xprog1, n :: stack1, env1) (xprog2, stack2, env2) 
+<->
+XMultiExec (xprog1, stack1, str ⊢> n ; env1) (xprog2, stack2, env2).
+Proof. Admitted.
+
+Lemma helper8 : forall (xprog1 xprog2 xprog3 : XProgram) (env1 env2 env3 : Env) (stack1 stack2 stack3 : XStack) ,
+  XMultiExec (xprog1, stack1, env1) (xprog3, stack3, env3) ->
+  XMultiExec (xprog1, stack1, env1) (xprog2, stack2, env2) ->
+  XMultiExec (xprog2, stack2, env2) (xprog3, stack3, env3).
+Proof. Admitted.
+
+Lemma helper9 : forall (xprog1 xprog2 xprog3 : XProgram) (env1 env2 env3 : Env) (stack1 stack2 stack3 : XStack) ,
+  XMultiExec (xprog1, stack1, env1) (xprog3, stack3, env3) ->
+  XMultiExec (xprog2, stack2, env2) (xprog3, stack3, env3) ->
+  XMultiExec (xprog1, stack1, env1) (xprog2, stack2, env2).
+Proof. Admitted.
+
+Lemma helper10 : forall (xprog1 xprog2 xprog3 : XProgram) (env1 env2 env3 : Env) (stack1 stack2 stack3 : XStack) ,
+  XMultiExec (xprog2, stack2, env2) (xprog3, stack3, env3) ->
+  XMultiExec (xprog1, stack1, env1) (xprog2, stack2, env2) -> 
+  XMultiExec (xprog1, stack1, env1) (xprog3, stack3, env3).
+Proof. Admitted.
+
+Lemma helper6 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack) (n1 n2 : nat),
+XMultiExec (XAdd :: xprog1, n1 :: n2 :: stack1, env1) (xprog2, stack2, env2) 
+<->
+XMultiExec (xprog1, (n1 + n2) :: stack1, env1) (xprog2, stack2, env2).
+Proof. 
+  intros. split.
+  - intros. apply helper8 with  (XAdd :: xprog1) env1 (n1 :: n2 :: stack1) .
+    * assumption.
+    * apply XMultiExec_smallExec. apply XExec_Add.
+  - intros. apply helper10 with xprog1 env1 (n1 + n2 :: stack1).
+    * assumption.
+    * apply XMultiExec_smallExec. apply XExec_Add. Qed.
+
+Lemma helper7 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack) (n1 n2 : nat),
+XMultiExec (XMul :: xprog1, n1 :: n2 :: stack1, env1) (xprog2, stack2, env2) 
+<->
+XMultiExec (xprog1, (n1 * n2) :: stack1, env1) (xprog2, stack2, env2).
+Proof. Admitted.
+
+Theorem xprog_concat_is_like_piping_outputs : forall (xprog1 xprog2 : XProgram) (env0 env1 env2 : Env) (stack : XStack),
   XMultiExec (xprog1, stack, env0) ([], empty_stack, env1) ->
   XMultiExec (xprog2, empty_stack, env1) ([], empty_stack, env2) ->
   XMultiExec (xprog1 ++ xprog2, stack, env0) ([], empty_stack, env2).
 Proof.
-  intros. generalize dependent stack. induction xprog1.
+  intros. generalize dependent stack. generalize dependent env0. induction xprog1.
   - intros. inversion H.
     * inversion H2. simpl. assumption.
     * subst. simpl. apply zero_step_dont_change_env in H. destruct H. subst. assumption.
@@ -336,63 +372,28 @@ Proof.
       + apply add_cannot_be_used_with_empty_stack in H. exfalso. assumption.
       + destruct stack. 
           -- apply add_cannot_be_used_with_one_number in H. exfalso. assumption.
-          -- apply XMultiExec_trans with (xprog1 ++ xprog2) ((n + n0) :: stack) env0.
-              ** apply XMultiExec_smallExec.
-                  replace ((XAdd :: xprog1) ++ xprog2) with (XAdd :: (xprog1 ++ xprog2)).
-                  remember (xprog1 ++ xprog2) as xprog12.
-                  ++ apply XExec_Add.
-                  ++ reflexivity.
-              ** apply IHxprog1. apply helper1 in H. assumption.
+          -- rewrite -> helper6 in H. apply (IHxprog1 env0 (n + n0 :: stack)) in H.
+              rewrite <- helper6 in H. assumption.
     * destruct stack.
       + apply mul_cannot_be_used_with_empty_stack in H. exfalso. assumption.
       + destruct stack. 
           -- apply mul_cannot_be_used_with_one_number in H. exfalso. assumption.
-          -- apply XMultiExec_trans with (xprog1 ++ xprog2) ((n * n0) :: stack) env0.
-              ** apply XMultiExec_smallExec.
-                  replace ((XMul :: xprog1) ++ xprog2) with (XMul :: (xprog1 ++ xprog2)).
-                  remember (xprog1 ++ xprog2) as xprog12.
-                  ++ apply XExec_Mul.
-                  ++ reflexivity.
-              ** apply IHxprog1. apply helper2 in H. assumption.
+          -- rewrite -> helper7 in H. apply (IHxprog1 env0 (n * n0 :: stack)) in H.
+              rewrite <- helper7 in H. assumption.
      * apply helper3 in H. assert (XMultiExec (xprog1 ++ xprog2,  n :: stack, env0) ([], empty_stack, env2)).
         { apply IHxprog1. assumption. }
         replace ((XLoadConst n :: xprog1) ++ xprog2) with (XLoadConst n :: (xprog1 ++ xprog2)).
         remember (xprog1 ++ xprog2) as xprog12.
         + apply helper3. assumption.
         + reflexivity.
-    * apply helper4.
-
-apply (helper3 xprog12 [] stack empty_stack env0 env2). 
-
-apply XMultiExec_smallExec. 
-        replace ((XLoadConst n :: xprog1) ++ xprog2) with ((XLoadConst n) :: (xprog1 ++ xprog2)).
-        + remember (xprog1 ++ xprog2) as xprog12. apply XEx_LoadC.
-
- 
-admit.
-     * admit.
-     * admit.
-
-
-(*
-  | XMultiExec_trans : forall (xprog1 xprog2 xprog3: XProgram) (stack1 stack2 stack3: XStack) (env1 env2 env3: Env),
-      XMultiExec (xprog1, stack1, env1) (xprog2, stack2, env2) ->
-      XMultiExec (xprog2, stack2, env2) (xprog3, stack3, env3) ->
-      XMultiExec (xprog1, stack1, env1) (xprog3, stack3, env3).
-*)
-
-
-    * apply add_cannot_be_used_with_empty_stack in H. exfalso. assumption.
-    * apply mul_cannot_be_used_with_empty_stack in H. exfalso. assumption.
-    * inversion H. subst.
-      + inversion H2.
-      + subst.
-
-
- inversion H2. subst.
-
-
-simpl. apply XMultiExec_smallExec. apply XExec_Add.
+    * rewrite -> helper4 in H. destruct H as [n]. destruct H. apply (IHxprog1 env0 (n :: stack)) in H.
+        assert (exists n, XMultiExec (xprog1 ++ xprog2, n :: stack, env0) ([], empty_stack, env2) /\ env0 s = Some n).
+        { exists n. split. assumption. assumption. } rewrite <- helper4 in H2. assumption.
+   * destruct stack. 
+      + apply store_cannot_be_used_with_empty_stack in H. exfalso. assumption.
+        + rewrite -> helper5 in H.
+          apply (IHxprog1 (s ⊢> n; env0) stack) in H.
+          rewrite <- helper5 in H. assumption. Qed.
 
 Theorem xprog_concat_is_like_piping_outputs : 
   forall (xprog1 xprog2 : XProgram) (env0 env1 env2 env3 : Env),
@@ -454,7 +455,6 @@ Proof.
 
 
 (*
-
 Theorem semantic_preserved_always : forall (yprog : YStmt),
   well_defined yprog ->
   semantic_preserved yprog.
