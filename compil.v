@@ -2,6 +2,69 @@ Require Import String.
 Require Import List.
 Require Import Arith.
 Import ListNotations.
+Require Import Reflect.
+
+From Coq Require Export Bool.
+From Coq Require Export Arith.Arith.
+From Coq Require Export PeanoNat.
+From Coq Require Export Arith.EqNat.
+From Coq Require Export Lia.
+From Coq Require Export List.
+Export ListNotations.
+From Coq Require Export Permutation.
+
+Print reflect.
+
+(* bdestruct *)
+
+Lemma eqb_reflect : forall x y, reflect (x = y) (x =? y).
+Proof.
+  intros x y. apply iff_reflect. symmetry.
+  apply Nat.eqb_eq.
+Qed.
+Lemma ltb_reflect : forall x y, reflect (x < y) (x <? y).
+Proof.
+  intros x y. apply iff_reflect. symmetry.
+  apply Nat.ltb_lt.
+Qed.
+
+Definition geb (n m : nat) := m <=? n.
+Hint Unfold geb : core.
+Infix ">=?" := geb (at level 70) : nat_scope.
+
+Definition gtb (n m : nat) := m <? n.
+Hint Unfold gtb : core.
+Infix ">?" := gtb (at level 70) : nat_scope.
+
+Lemma leb_reflect : forall x y, reflect (x <= y) (x <=? y).
+Proof.
+  intros x y. apply iff_reflect. symmetry.
+  apply Nat.leb_le.
+Qed.
+Lemma gtb_reflect : forall x y, reflect (x > y) (x >? y).
+Proof.
+  intros x y. apply iff_reflect. symmetry.
+  apply Nat.ltb_lt.
+Qed.
+Lemma geb_reflect : forall x y, reflect (x >= y) (x >=? y).
+Proof.
+  intros x y. apply iff_reflect. symmetry.
+  apply Nat.leb_le.
+Qed.
+
+Hint Resolve ltb_reflect leb_reflect gtb_reflect geb_reflect eqb_reflect : bdestruct.
+
+Ltac bdestruct X :=
+  let H := fresh in let e := fresh "e" in
+   evar (e: Prop);
+   assert (H: reflect e X); subst e;
+    [ auto with bdestruct
+    | destruct H as [H|H];
+       [ | try first [apply not_lt in H | apply not_le in H]]].
+
+Print bdestruct.
+
+(* langages definitions *)
  
 Inductive YExpr :=
     | YConst : nat -> YExpr
@@ -54,6 +117,12 @@ Notation "x '⊢>' v ';' m" := (update_env m x v) (at level 100, v at next level
 Notation "x '⊢>' v" := (update_env empty_env x v) (at level 100).
   
 Example example_env := "a" ⊢> 3 ; "c" ⊢> 6.
+
+Lemma env_value_is_unique : forall (str : string) (n1 n2 : nat) (env : Env),
+  env str = Some n1 ->
+  env str = Some n2 ->
+  n1 = n2.
+Proof. Admitted.
 
 (* compilation *)
  
@@ -331,23 +400,6 @@ Proof.
   - assumption.
   - assumption. Qed.
 
-(*
-Lemma helper8 : forall (xprog1 xprog2 xprog3 : XProgram) (env1 env2 env3 : Env) (stack1 stack2 stack3 : XStack) ,
-  XMultiExec (xprog1, stack1, env1) (xprog3, stack3, env3) ->
-  XMultiExec (xprog1, stack1, env1) (xprog2, stack2, env2) ->
-  (XMultiExec (xprog2, stack2, env2) (xprog3, stack3, env3) \/
-    XMultiExec (xprog3, stack3, env3) (xprog2, stack2, env2)).
-Proof.
-  Admitted.
-
-Lemma helper9 : forall (xprog1 xprog2 xprog3 : XProgram) (env1 env2 env3 : Env) (stack1 stack2 stack3 : XStack) ,
-  XMultiExec (xprog1, stack1, env1) (xprog3, stack3, env3) ->
-  XMultiExec (xprog2, stack2, env2) (xprog3, stack3, env3) ->
-  (XMultiExec (xprog1, stack1, env1) (xprog2, stack2, env2) \/
-    XMultiExec (xprog1, stack1, env1) (xprog2, stack2, env2)).
-Proof. Admitted.
-*)
-
 Lemma helper11 : forall (xprog1 xprog2 xprog3 : XProgram) (env1 env2 env3 : Env) (stack1 stack2 stack3 : XStack) ,
   XExec (xprog1, stack1, env1) (xprog2, stack2, env2) ->
   XMultiExec (xprog1, stack1, env1) (xprog3, stack3, env3) ->
@@ -362,12 +414,6 @@ Proof.
   * apply IHXMultiExec1 in H. apply xmulti_trans with xprog4 env4 stack4.
     + assumption.
     + assumption. Qed.
-
-Lemma helper12 : forall (xprog1 xprog2 xprog3 : XProgram) (env1 env2 env3 : Env) (stack1 stack2 stack3 : XStack) ,
-  XMultiExec (xprog1, stack1, env1) (xprog3, stack3, env3) ->
-  XExec (xprog2, stack2, env2) (xprog3, stack3, env3) ->
-  XMultiExec (xprog1, stack1, env1)  (xprog2, stack2, env2).
-Proof. Admitted.
 
 Lemma helper3 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack) (n : nat),
 XMultiExec ((XLoadConst n) :: xprog1, stack1, env1) (xprog2, stack2, env2)
@@ -440,6 +486,12 @@ Proof.
     * apply XMultiExec_smallExec. apply XExec_Mul.
     * assumption. Qed.
 
+Lemma load_execs_only_if_var_is_known : 
+  forall  (xprog1 : XProgram) (env1 env2 : Env) (stack1 : XStack) (s : string),
+  XMultiExec (XLoadAdrs s :: xprog1, stack1, env1) ([], empty_stack, env2) ->
+  exists n, (env1 s = Some n).
+Proof. Admitted.
+
 Theorem xprog_concat_is_like_piping_outputs : forall (xprog1 xprog2 : XProgram) (env0 env1 env2 : Env) (stack : XStack),
   XMultiExec (xprog1, stack, env0) ([], empty_stack, env1) ->
   XMultiExec (xprog2, empty_stack, env1) ([], empty_stack, env2) ->
@@ -468,17 +520,19 @@ Proof.
         remember (xprog1 ++ xprog2) as xprog12.
         + apply helper3. assumption.
         + reflexivity.
-    *
-admit.
-      (* rewrite -> helper4 in H. destruct H as [n]. destruct H. apply (IHxprog1 env0 (n :: stack)) in H.
-        assert (exists n, XMultiExec (xprog1 ++ xprog2, n :: stack, env0) ([], empty_stack, env2) /\ env0 s = Some n).
-        { exists n. split. assumption. assumption. } rewrite <- helper4 in H2. assumption.
-      *)
+    *  assert (exists n, env0 s = Some n). { apply load_execs_only_if_var_is_known in H. assumption. }
+        destruct H1 as [n].
+        assert (XMultiExec (XLoadAdrs s :: xprog1, stack, env0) ([], empty_stack, env1) /\
+       env0 s = Some n). { split. apply H. apply H1. } apply helper4 in H2.
+        destruct H2.
+        apply (IHxprog1 env0 (n :: stack)) in H2.
+        assert (XMultiExec (xprog1 ++ xprog2, n :: stack, env0) ([], empty_stack, env2) /\ env0 s = Some n).
+        { split. apply H2. apply H3. } rewrite <- helper4 in H4. destruct H4. assumption.
    * destruct stack. 
       + apply store_cannot_be_used_with_empty_stack in H. exfalso. assumption.
         + rewrite -> helper5 in H.
           apply (IHxprog1 (s ⊢> n; env0) stack) in H.
-          rewrite <- helper5 in H. assumption. 
+          rewrite <- helper5 in H. assumption. Qed. 
 
 Theorem semantic_preserved_by_seq : forall (yprog1 yprog2 : YStmt),
   semantic_preserved yprog1 ->
