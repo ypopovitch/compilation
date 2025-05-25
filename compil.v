@@ -64,37 +64,11 @@ Ltac bdestruct X :=
 
 Print bdestruct.
 
-(* langages definitions *)
- 
-Inductive YExpr :=
-    | YConst : nat -> YExpr
-    | YVar : string -> YExpr
-    | YAdd : YExpr -> YExpr -> YExpr
-    | YMul : YExpr -> YExpr -> YExpr.
- 
-Inductive YStmt :=
-    | YSkip
-    | YAssign : string -> YExpr -> YStmt
-    | YSeq : YStmt -> YStmt -> YStmt.
- 
-Inductive XExpr :=
-    | XConst : nat -> XExpr
-    | XAdrs : string -> XExpr.
- 
-Inductive XInstr :=
-    | XAdd : XInstr
-    | XMul : XInstr
-    | XLoadConst : nat -> XInstr
-    | XLoadAdrs : string -> XInstr
-    | XStore : string -> XInstr.
- 
-Definition XProgram := list XInstr.
-Definition XStack := list nat.
-Definition empty_xprog : list XInstr := nil.
-Definition empty_stack : list nat := nil.
- 
-(* Env definitions *)
- 
+(* environnement *)
+
+Require Import String.
+From Hammer Require Import Tactics.
+
 Definition total_map (A : Type) := string -> A.
 Definition t_empty {A : Type} (v : A) : total_map A :=  (fun _ => v).
 Definition t_update {A : Type} (m : total_map A) (x : string) (v : A) := 
@@ -124,6 +98,35 @@ Lemma env_value_is_unique : forall (str : string) (n1 n2 : nat) (env : Env),
   n1 = n2.
 Proof. 
   sauto. Qed.
+
+(* langages definitions *)
+ 
+Inductive YExpr :=
+    | YConst : nat -> YExpr
+    | YVar : string -> YExpr
+    | YAdd : YExpr -> YExpr -> YExpr
+    | YMul : YExpr -> YExpr -> YExpr.
+ 
+Inductive YStmt :=
+    | YSkip
+    | YAssign : string -> YExpr -> YStmt
+    | YSeq : YStmt -> YStmt -> YStmt.
+ 
+Inductive XExpr :=
+    | XConst : nat -> XExpr
+    | XAdrs : string -> XExpr.
+ 
+Inductive XInstr :=
+    | XAdd : XInstr
+    | XMul : XInstr
+    | XLoadConst : nat -> XInstr
+    | XLoadAdrs : string -> XInstr
+    | XStore : string -> XInstr.
+ 
+Definition XProgram := list XInstr.
+Definition XStack := list nat.
+Definition empty_xprog : list XInstr := nil.
+Definition empty_stack : list nat := nil.
 
 (* compilation *)
  
@@ -218,13 +221,32 @@ Definition YisFinalStateOf (yprog1 : YStmt) (env1 env2 : Env) : Prop :=
 Definition XisFinalStateOf (xprog1 : XProgram) (env1 env2 : Env) (stack : XStack) : Prop :=
   XMultiExec (xprog1, stack, env1) ([], [], env2).
 
+(* well defined programs *)
+
+Inductive well_defined : YStmt -> Prop  :=
+  | WellDef_Skip : well_defined YSkip
+  | WellDef_Assign : forall (str : string) (yexpr : YExpr), well_defined (YAssign str yexpr)
+  | WellDef_Seq_Skip : forall (yprog : YStmt),
+      well_defined yprog ->
+      well_defined (YSeq YSkip yprog)
+  | WellDef_Seq_Assign : forall (yprog : YStmt) (str : string) (yexpr : YExpr),
+      well_defined yprog ->
+      well_defined (YSeq (YAssign str yexpr) yprog).
+
 (* proofs *)
 
 Theorem y_expr_smallstep_is_unique : forall (yexpr1 yexpr2 yexpr3 : YExpr) (env : Env),
   YStep_expr env yexpr1 yexpr2 ->
   YStep_expr env yexpr1 yexpr3 ->
   yexpr2 = yexpr3.
-Proof. Admitted.
+Proof.
+  intros yexpr1 yexpr2 yexpr3 env H1 H2. induction yexpr1.
+  - sauto.
+  - destruct yexpr2; destruct yexpr3; try (inversion H1; inversion H2; reflexivity).
+    sauto. 
+  - admit.
+  - admit.
+
 
 Theorem y_expr_finalstep_is_unique : forall (yexpr : YExpr) (env : Env) (n1 n2 : nat),
   YMultiStep_expr env yexpr (YConst n1) ->
@@ -344,16 +366,6 @@ Theorem semantic_preserved_by_assign : forall (str: string) (yexpr: YExpr),
   semantic_preserved (YAssign str yexpr).
 Proof. Admitted.
 
-Inductive well_defined : YStmt -> Prop  :=
-  | WellDef_Skip : well_defined YSkip
-  | WellDef_Assign : forall (str : string) (yexpr : YExpr), well_defined (YAssign str yexpr)
-  | WellDef_Seq_Skip : forall (yprog : YStmt),
-      well_defined yprog ->
-      well_defined (YSeq YSkip yprog)
-  | WellDef_Seq_Assign : forall (yprog : YStmt) (str : string) (yexpr : YExpr),
-      well_defined yprog ->
-      well_defined (YSeq (YAssign str yexpr) yprog)
-.
 
 Theorem semantic_preserved_by_skip :
   semantic_preserved YSkip.
@@ -611,4 +623,3 @@ Proof.
     assert (well_defined yprog1). { apply (well_defined_applies_to_sub_seq_left yprog1 yprog2 H). }
     assert (well_defined yprog2). { apply (well_defined_applies_to_sub_seq_right yprog1 yprog2 H). }
     apply (semantic_preserved_by_seq yprog1 yprog2 (IHyprog1 H0) (IHyprog2 H1)). Qed.
-
