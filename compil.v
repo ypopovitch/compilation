@@ -13,12 +13,12 @@ From Coq Require Export List.
 Export ListNotations.
 From Coq Require Export Permutation.
 
-Print reflect.
+From Hammer Require Import Tactics.
 
 (* bdestruct *)
 
 Lemma eqb_reflect : forall x y, reflect (x = y) (x =? y).
-Proof.
+Proof. 
   intros x y. apply iff_reflect. symmetry.
   apply Nat.eqb_eq.
 Qed.
@@ -122,7 +122,8 @@ Lemma env_value_is_unique : forall (str : string) (n1 n2 : nat) (env : Env),
   env str = Some n1 ->
   env str = Some n2 ->
   n1 = n2.
-Proof. Admitted.
+Proof. 
+  sauto. Qed.
 
 (* compilation *)
  
