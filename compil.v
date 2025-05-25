@@ -235,17 +235,30 @@ Inductive well_defined : YStmt -> Prop  :=
 
 (* proofs *)
 
-Theorem y_expr_smallstep_is_unique : forall (yexpr1 yexpr2 yexpr3 : YExpr) (env : Env),
+Theorem y_expr_smallstep_is_unique : forall (yexpr1 yexpr2 : YExpr) (env : Env),
   YStep_expr env yexpr1 yexpr2 ->
-  YStep_expr env yexpr1 yexpr3 ->
-  yexpr2 = yexpr3.
-Proof.
-  intros yexpr1 yexpr2 yexpr3 env H1 H2. induction yexpr1.
+  (forall yexpr3, YStep_expr env yexpr1 yexpr3 ->
+  yexpr2 = yexpr3).
+Proof. 
+  intros yexpr1 yexpr2 env H1 yexpr3 H2.
+  destruct yexpr1.
   - sauto.
-  - destruct yexpr2; destruct yexpr3; try (inversion H1; inversion H2; reflexivity).
-    sauto. 
-  - admit.
-  - admit.
+  - sauto.
+  - generalize dependent yexpr3. 
+    induction H1; intros yexpr3; sauto.
+  - generalize dependent yexpr3. 
+    induction H1; intros yexpr3; sauto.
+Qed.
+
+  induction H1.
+  - sauto.
+  -
+  destruct yexpr1.
+  - sauto.
+  - sauto.
+  - induction H1.
+    * sauto.
+    * 
 
 
 Theorem y_expr_finalstep_is_unique : forall (yexpr : YExpr) (env : Env) (n1 n2 : nat),
