@@ -420,13 +420,34 @@ Proof.
     induction H1; intros yexpr3; sauto.
 Qed.
 
+Theorem no_smallstep_self :
+  forall (env : Env) (yexpr : YExpr),
+  YMultiStep_expr env yexpr yexpr -> False.
+Proof.
+  intros. induction yexpr.
+  - inversion H. subst.
+    * Check expr_const_dont_step. apply (expr_const_dont_step n env (YConst n)).
+      assumption.
+    * subst. apply (expr_const_dont_step n env yexpr2). assumption.
+  - inversion H. subst.
+    * inversion H0.
+    * subst.
+Admitted.
+
 Theorem smallstep_is_atomic :
   forall (env : Env) (yexpr1 yexpr2 yexpr3 : YExpr),
   YStep_expr env yexpr1 yexpr3 ->
   YMultiStep_expr env yexpr1 yexpr2 ->
   YMultiStep_expr env yexpr2 yexpr3 -> False.
 Proof.
-    Admitted.
+  intros. generalize dependent yexpr3. induction H0.
+  - intros. assert (yexpr2 = yexpr3). { apply y_expr_smallstep_is_unique with yexpr1 env. assumption. assumption. }
+    subst. apply no_smallstep_self in H1. assumption.
+  - intros. apply IHYMultiStep_expr1 with yexpr0.
+    + assumption.
+    + apply YMultiStep_expr_trans with yexpr3.
+      * assumption. * assumption.
+Qed.
 
 Theorem yexpr_steps_are_chained : 
   forall (yexpr1 yexpr2 : YExpr) (env : Env),
