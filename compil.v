@@ -164,7 +164,7 @@ Inductive YStep_expr (env : Env) : YExpr -> YExpr -> Prop :=
   | YStep_Mul2 : forall (n1 : nat) (yexpr2 yexpr2' : YExpr),
     (YStep_expr env yexpr2 yexpr2') ->
     YStep_expr env (YMul (YConst n1) yexpr2) (YMul (YConst n1) yexpr2')
-  | YStep_Mul : forall (n1 n2 : nat),
+  | YStep_Mul3 : forall (n1 n2 : nat),
     YStep_expr env (YMul (YConst n1) (YConst n2)) (YConst (n1 * n2)).
  
 Inductive YStep : (YStmt * Env) -> (YStmt * Env) -> Prop :=
@@ -377,18 +377,18 @@ Proof.
   - inversion H. subst. apply IHyexpr1 in H3. destruct H3 as [H5 | H6].
     * destruct H5 as [n]. subst. apply IHyexpr2 in H4. destruct H4 as [H7 | H8].
       + destruct H7 as [n']. subst. right. exists (n * n').
-        apply YMultiStep_expr_smallStep. apply YStep_Mul.
+        apply YMultiStep_expr_smallStep. apply YStep_Mul3.
       + destruct H8 as [n']. right. exists (n * n').
         apply YMultiStep_expr_trans with (YMul (YConst n) (YConst n')).
         -- apply expr_multi_step_mul_right. assumption.
-        -- apply YMultiStep_expr_smallStep. apply YStep_Mul.
+        -- apply YMultiStep_expr_smallStep. apply YStep_Mul3.
     * destruct H6 as [n]. right. apply IHyexpr2 in H4.
       + destruct H4. destruct H1 as [n']. subst.
         -- exists (n * n'). 
             apply (expr_multi_step_mul_left env yexpr1 (YConst n) (YConst n')) in H0.
             apply YMultiStep_expr_trans with (YMul (YConst n) (YConst n')).
             ++ assumption.
-            ++ apply YMultiStep_expr_smallStep. apply YStep_Mul.
+            ++ apply YMultiStep_expr_smallStep. apply YStep_Mul3.
         -- destruct H1 as [n']. exists (n * n').
             assert (YMultiStep_expr env (YMul yexpr1 yexpr2) (YMul (YConst n) yexpr2)).
             { apply expr_multi_step_mul_left. assumption. }
@@ -398,7 +398,7 @@ Proof.
             ** assumption.
             ** apply YMultiStep_expr_trans with (YMul (YConst n) (YConst n')).
                 ++ assumption.
-                ++ apply YMultiStep_expr_smallStep. apply YStep_Mul.
+                ++ apply YMultiStep_expr_smallStep. apply YStep_Mul3.
 Qed.
 
 Theorem y_expr_smallstep_is_unique : forall (yexpr1 yexpr2 yexpr3 : YExpr) (env : Env),
