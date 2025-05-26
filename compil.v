@@ -235,12 +235,12 @@ Inductive well_defined : YStmt -> Prop  :=
 
 (* proofs *)
 
-Theorem y_expr_smallstep_is_unique : forall (yexpr1 yexpr2 : YExpr) (env : Env),
+Theorem y_expr_smallstep_is_unique : forall (yexpr1 yexpr2 yexpr3 : YExpr) (env : Env),
   YStep_expr env yexpr1 yexpr2 ->
-  (forall yexpr3, YStep_expr env yexpr1 yexpr3 ->
-  yexpr2 = yexpr3).
+  YStep_expr env yexpr1 yexpr3 ->
+  yexpr2 = yexpr3.
 Proof. 
-  intros yexpr1 yexpr2 env H1 yexpr3 H2.
+  intros yexpr1 yexpr2 yexpr3 env H1 H2.
   destruct yexpr1.
   - sauto.
   - sauto.
@@ -250,22 +250,43 @@ Proof.
     induction H1; intros yexpr3; sauto.
 Qed.
 
+Theorem yexpr_steps_are_chained : 
+  forall (yexpr1 yexpr2 : YExpr) (env : Env),
+  YMultiStep_expr env yexpr1 yexpr2 ->
+  (forall (yexpr3 : YExpr),
+  YMultiStep_expr env yexpr1 yexpr3 ->
+    (YMultiStep_expr env yexpr2 yexpr3 \/
+    YMultiStep_expr env yexpr3 yexpr2 \/
+    yexpr3 = yexpr2)).
+Proof.
+  intros yexpr1 yexpr2 env H1 yexpr3 H2.
   induction H1.
-  - sauto.
-  -
-  destruct yexpr1.
-  - sauto.
-  - sauto.
-  - induction H1.
-    * sauto.
-    * 
+  - induction H2.
+    + right. right. apply y_expr_smallstep_is_unique with yexpr1 env.
+      assumption. assumption.
+    + apply IHYMultiStep_expr1 in H.
+      * destruct H.
+        -- left. apply YMultiStep_expr_trans with yexpr0.
+            ++ assumption.
+            ++ assumption.
+        -- destruct H as [H | H].
+          ++ inversion H. subst.
+            ** apply IHYMultiStep_expr2 in H0. assumption.
+            ** subst. clear H0. clear H1. clear yexpr5.
 
+        
+  - sauto.
+Qed.
 
 Theorem y_expr_finalstep_is_unique : forall (yexpr : YExpr) (env : Env) (n1 n2 : nat),
   YMultiStep_expr env yexpr (YConst n1) ->
   YMultiStep_expr env yexpr (YConst n2) ->
   n1 = n2.
-Proof. Admitted.
+Proof.
+  intros yexpr env n1 n2 H1 H2. destruct yexpr.
+  - inversion H1. subst. inversion H. subst.
+
+Admitted.
 
 Theorem ysmallstep_is_unique : forall (yprog1 yprog2 yprog3 : YStmt) (env1 env2 env3 : Env),
    YStep (yprog1, env1) (yprog2, env2) -> 
