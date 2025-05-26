@@ -297,7 +297,11 @@ Proof.
 
 Theorem expr_const_dont_step : forall (n : nat) (env : Env) (yexpr : YExpr),
   YMultiStep_expr env (YConst n) yexpr -> False.
-Proof. Admitted.
+Proof.
+  intros. remember (YConst n) as yconst. induction H.
+  - subst. inversion H.
+  - subst. apply IHYMultiStep_expr1. reflexivity.
+Qed.
 
 Theorem expr_multi_step_add_right : 
   forall (env : Env) (yexpr yexpr': YExpr) (n : nat),
@@ -416,9 +420,7 @@ Proof.
     induction H1; intros yexpr3; sauto.
 Qed.
 
-
-
-
+(*
 Theorem yexpr_steps_are_chained : 
   forall (yexpr1 yexpr2 : YExpr) (env : Env),
   YMultiStep_expr env yexpr1 yexpr2 ->
@@ -428,72 +430,43 @@ Theorem yexpr_steps_are_chained :
     YMultiStep_expr env yexpr_chained yexpr2 \/
     yexpr_chained = yexpr2)).
 Proof.
-  intros.
-  apply test in H. destruct H as [yexpr_middle]. destruct H. destruct H1.
-  - apply test in H0.
-
-
-
-
-  intros yexpr1 yexpr2 env H1 yexpr_chained H2. generalize dependent yexpr_chained.
-  induction H1 as [ yexpr1' yexpr2' H1' | yexpr1' yexpr2' yexpr3' H1' H2' H3' H4' ].
-  - intros yexpr_chained H1_C. 
-    inversion H1_C as [ yexpr1'' yexpr2'' H1'' | yexpr1'' yexpr2'' yexpr3'' H1'' H2'' H3'' H4'' ].
-    * right. right. apply y_expr_smallstep_is_unique with yexpr1' env.
-      + assumption. + assumption.
-    * subst. Check YMultiStep_expr_ind.
-
-
-
-    
-    induction H1_C as [ yexpr1'' yexpr2'' H1'' | yexpr1'' yexpr2'' yexpr3'' H1'' H2'' H3'' H4'' ].
-    * right. right. apply y_expr_smallstep_is_unique with yexpr1'' env.
-      + assumption. + assumption.
-    * apply H2'' in H1'.
-      + destruct H1'.
-        -- left. apply YMultiStep_expr_trans with yexpr2''. assumption. assumption.
-        -- destruct H.
-            ** 
-  - intros yexpr_chained H1_C. apply H2' in H1_C. destruct H1_C.
-    * apply H4' in H. assumption.
-    * destruct H.
-      + right. left. apply YMultiStep_expr_trans with yexpr2'. assumption. assumption.
-      + subst. right. left. assumption.
-Qed.
-
-  - induction H2.
-    + right. right. apply y_expr_smallstep_is_unique with yexpr1 env. assumption. assumption.
-    + Check YMultiStep_expr_ind.
-
-
-
-
- induction H2.
-    + right. right. apply y_expr_smallstep_is_unique with yexpr1 env.
-      assumption. assumption.
-    + apply IHYMultiStep_expr1 in H.
-      * destruct H.
-        -- left. apply YMultiStep_expr_trans with yexpr0.
-            ++ assumption.
-            ++ assumption.
-        -- destruct H as [H | H].
-          ++ inversion H. subst.
-            ** apply IHYMultiStep_expr2 in H0. assumption.
-            ** subst. clear H0. clear H1. clear yexpr5.
-
-        
-  - sauto.
-Qed.
+  Admitted.
+*)
 
 Theorem y_expr_finalstep_is_unique : forall (yexpr : YExpr) (env : Env) (n1 n2 : nat),
   YMultiStep_expr env yexpr (YConst n1) ->
   YMultiStep_expr env yexpr (YConst n2) ->
   n1 = n2.
 Proof.
+  intros. remember (YConst n1) as yconst1. induction H.
+  - subst. inversion H0. subst.
+    * assert (YConst n1 = YConst n2). 
+      { apply y_expr_smallstep_is_unique with yexpr1 env. }
+      injection H2. intros. lia.
+    * subst. inversion H0. subst. assert (YConst n1 = YConst n2). 
+      { apply y_expr_smallstep_is_unique with yexpr1 env. }
+      injection H4. intros. assumption. subst. assert (YConst n1 = YConst n2). 
+      { apply y_expr_smallstep_is_unique with yexpr1 env. assumption. }
+      injection H5. intros. assumption.
+  - apply IHYMultiStep_expr1.
+    * admit.
+    * assumption.
+
+
+
+    inversion H. subst. inversion H2. subst.
+    apply expr_const_dont_step in H1. exfalso. assumption.
+    + subst. apply IHYMultiStep_expr2.
+      ++ reflexivity.
+      ++ Check YMultiStep_expr_trans. apply YMultiStep_expr_trans with .
+
+
   intros yexpr env n1 n2 H1 H2. destruct yexpr.
   - inversion H1. subst. inversion H. subst.
 
 Admitted.
+
+
 
 Theorem ysmallstep_is_unique : forall (yprog1 yprog2 yprog3 : YStmt) (env1 env2 env3 : Env),
    YStep (yprog1, env1) (yprog2, env2) -> 
