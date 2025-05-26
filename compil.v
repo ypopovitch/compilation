@@ -420,19 +420,63 @@ Proof.
     induction H1; intros yexpr3; sauto.
 Qed.
 
+Fixpoint expr_length (yexpr : YExpr) : nat :=
+  match yexpr with
+  | YConst n => 1
+  | YVar str => 2
+  | YAdd yexpr1 yexpr2 => expr_length yexpr1 + expr_length yexpr2
+  | YMul yexpr1 yexpr2 => expr_length yexpr1 + expr_length yexpr2
+  end.
+
+Theorem expr_smallstep_length_decreases : 
+  forall (env : Env) (yexpr1 yexpr2 : YExpr),
+  YStep_expr env yexpr1 yexpr2 ->
+  expr_length yexpr1 > expr_length yexpr2.
+Proof. intros. induction H; simpl; lia. Qed.
+
+Theorem expr_step_length_decreases : 
+  forall (env : Env) (yexpr1 yexpr2 : YExpr),
+  YMultiStep_expr env yexpr1 yexpr2 ->
+  expr_length yexpr1 > expr_length yexpr2.
+Proof.
+  intros. induction H.
+  - apply expr_smallstep_length_decreases with env. assumption.
+  - lia.
+Qed.
+
+Theorem expr_step_not_commutative : 
+  forall (env : Env) (yexpr1 yexpr2 : YExpr),
+  YMultiStep_expr env yexpr1 yexpr2 ->
+  YMultiStep_expr env yexpr2 yexpr1 ->
+  False.
+Proof.
+  intros. assert (expr_length yexpr1 > expr_length yexpr2).
+  { apply expr_step_length_decreases with env. assumption. }
+  assert (expr_length yexpr2 > expr_length yexpr1).
+  { apply expr_step_length_decreases with env. assumption. }
+  lia.
+Qed.
+
 Theorem no_smallstep_self :
   forall (env : Env) (yexpr : YExpr),
   YMultiStep_expr env yexpr yexpr -> False.
 Proof.
-  intros. induction yexpr.
-  - inversion H. subst.
-    * Check expr_const_dont_step. apply (expr_const_dont_step n env (YConst n)).
-      assumption.
-    * subst. apply (expr_const_dont_step n env yexpr2). assumption.
-  - inversion H. subst.
-    * inversion H0.
-    * subst.
-Admitted.
+  intros. apply expr_step_not_commutative with env yexpr yexpr.
+  assumption. assumption.
+Qed.
+
+Theorem expr_smallstep_no_come_back :
+ forall (env : Env) (yexpr1 yexpr2 yexpr3: YExpr),
+  YMultiStep_expr env yexpr1 yexpr2 ->
+  YMultiStep_expr env yexpr2 yexpr3 ->
+  YMultiStep_expr env yexpr3 yexpr1 ->
+  False.
+Proof.
+  intros. assert (YMultiStep_expr env yexpr1 yexpr3).
+  { apply YMultiStep_expr_trans with yexpr2. assumption. assumption. }
+  apply expr_step_not_commutative with  env yexpr1 yexpr3.
+  assumption. assumption.
+Qed.
 
 Theorem smallstep_is_atomic :
   forall (env : Env) (yexpr1 yexpr2 yexpr3 : YExpr),
