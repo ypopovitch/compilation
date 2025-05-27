@@ -188,7 +188,7 @@ Inductive YStep : (YStmt * Env) -> (YStmt * Env) -> Prop :=
   | YStep_Seq_Skip : forall (env : Env) (yprog : YStmt),
     YStep (YSeq YSkip yprog, env) (yprog, env)
   | YStep_Seq_Assgn_reduce : 
-    forall (env : Env) (yprog : YStmt) (s : string) (n : nat) (yexpr yexpr': YExpr),
+    forall (env : Env) (yprog : YStmt) (s : string) (yexpr yexpr': YExpr),
     YStep_expr env yexpr yexpr' ->
     YStep (YSeq (YAssign s yexpr) yprog, env) (YSeq (YAssign s yexpr') yprog, env)
   | YStep_Seq_Assgn_store : forall (env : Env) (yprog : YStmt) (s : string) (n : nat),
@@ -653,10 +653,28 @@ Theorem ysmallstep_is_unique : forall (yprog1 yprog2 yprog3 : YStmt) (env1 env2 
    YStep (yprog1, env1) (yprog3, env3) ->
    (yprog2, env2) = (yprog3, env3).
 Proof. 
-  intros. induction yprog1.
-  - inversion H.
-  - destruct yprog2.
-    * inversion H. subst.
+  intros yprog1 yprog2 yprog3 env1 env2 env3 H1 H2. induction H1.
+  - inversion H2; subst.
+    * assert (yexpr' = yexpr'0). 
+      { apply y_expr_smallstep_is_unique with yexpr env3. assumption. assumption. }
+      subst. reflexivity.
+    * apply expr_smallstep_mean_expr_multistep in H.
+      apply expr_const_dont_step in H. exfalso. assumption.
+  - sauto.
+  - sauto.
+  - assert (YStep (YSeq (YAssign s yexpr) yprog, env) (YSeq (YAssign s yexpr') yprog, env)).
+    { apply YStep_Seq_Assgn_reduce. assumption. }
+    inversion H2; subst.
+    assert (yexpr' = yexpr'0). 
+    { apply y_expr_smallstep_is_unique with yexpr env3. assumption. assumption. }
+     subst. reflexivity.
+    apply expr_smallstep_mean_expr_multistep in H.
+    apply expr_const_dont_step in H. exfalso. assumption.
+  - inversion H2; subst.
+    * apply expr_smallstep_mean_expr_multistep in H0.
+      apply expr_const_dont_step in H0. exfalso. assumption.
+    * reflexivity.
+Qed.
 
 Theorem y_finalstep_exists : forall (yprog : YStmt) (env1 : Env),
   exists env2, YisFinalStateOf yprog env1 env2.
