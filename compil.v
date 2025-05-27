@@ -676,9 +676,42 @@ Proof.
     * reflexivity.
 Qed.
 
+Fixpoint yprog_length (yprog : YStmt) : nat :=
+  match yprog with
+  | YSkip => 1
+  | YAssign str yexpr => 1 + expr_length yexpr
+  | YSeq yexpr1 yexpr2 => yprog_length yexpr1 + yprog_length yexpr2
+  end.
+
+Theorem yprog_smallstep_decreases :
+  forall (env1 env2 : Env) (yprog1 yprog2 : YStmt),
+  YStep (yprog1, env1) (yprog2, env2) ->
+  yprog_length yprog1 > yprog_length yprog2.
+Proof.
+  intros. induction yprog1.
+  - inversion H.
+  - simpl. inversion H; subst.
+    * apply expr_smallstep_length_decreases in H1. 
+      simpl. lia.
+    * simpl. lia.
+  - simpl. inversion H; subst.
+    * simpl. lia.
+    * simpl. apply expr_smallstep_length_decreases in H1. lia.
+    * simpl. lia.
+Qed.
+
+Theorem yprog_step_decreases :
+  forall (env1 env2 : Env) (yprog1 yprog2 : YStmt),
+  YMultiStep (yprog1, env1) (yprog2, env2) ->
+  yprog_length yprog1 > yprog_length yprog2.
+Proof.
+  intros. induction yprog1.
+  - 
+
 Theorem y_finalstep_exists : forall (yprog : YStmt) (env1 : Env),
   exists env2, YisFinalStateOf yprog env1 env2.
-Proof. Admitted.
+Proof.
+  intros. unfold YisFinalStateOf.
 
 Theorem y_finalstep_is_unique : forall (yprog : YStmt) (env1 env2 env3 : Env),
   YMultiStep (yprog, env1) (YSkip, env2) ->
