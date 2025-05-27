@@ -111,11 +111,7 @@ Inductive YStmt :=
     | YSkip
     | YAssign : string -> YExpr -> YStmt
     | YSeq : YStmt -> YStmt -> YStmt.
- 
-Inductive XExpr :=
-    | XConst : nat -> XExpr
-    | XAdrs : string -> XExpr.
- 
+
 Inductive XInstr :=
     | XAdd : XInstr
     | XMul : XInstr
@@ -239,15 +235,19 @@ Inductive well_defined_expr : Env -> YExpr -> Prop :=
     well_defined_expr env (YMul yexpr1 yexpr2)
 .
 
-Inductive well_defined : YStmt -> Prop  :=
-  | WellDef_Skip : well_defined YSkip
-  | WellDef_Assign : forall (str : string) (yexpr : YExpr), well_defined (YAssign str yexpr)
-  | WellDef_Seq_Skip : forall (yprog : YStmt),
-      well_defined yprog ->
-      well_defined (YSeq YSkip yprog)
-  | WellDef_Seq_Assign : forall (yprog : YStmt) (str : string) (yexpr : YExpr),
-      well_defined yprog ->
-      well_defined (YSeq (YAssign str yexpr) yprog).
+Inductive well_defined : Env -> YStmt -> Prop  :=
+  | WellDef_Skip : forall (env : Env),
+      well_defined env YSkip
+  | WellDef_Assign : forall (env : Env) (str : string) (yexpr : YExpr), 
+      well_defined_expr env yexpr ->
+      well_defined env (YAssign str yexpr)
+  | WellDef_Seq_Skip : forall (env : Env) (yprog : YStmt),
+      well_defined env yprog ->
+      well_defined env (YSeq YSkip yprog)
+  | WellDef_Seq_Assign : forall (env : Env) (yprog : YStmt) (str : string) (yexpr : YExpr),
+      well_defined env yprog ->
+      well_defined_expr env yexpr ->
+      well_defined env (YSeq (YAssign str yexpr) yprog).
 
 (* proofs *)
 
@@ -556,22 +556,6 @@ Proof.
     + apply expr_const_dont_step in H0. exfalso. assumption.
     + injection H0. intros. lia. Qed.
 
-Theorem ysmallstep_is_unique : forall (yprog1 yprog2 yprog3 : YStmt) (env1 env2 env3 : Env),
-   YStep (yprog1, env1) (yprog2, env2) -> 
-   YStep (yprog1, env1) (yprog3, env3) ->
-   (yprog2, env2) = (yprog3, env3).
-Proof. Admitted.
-
-Theorem y_finalstep_exists : forall (yprog : YStmt) (env1 : Env),
-  exists env2, YisFinalStateOf yprog env1 env2.
-Proof. Admitted.
-
-Theorem y_finalstep_is_unique : forall (yprog : YStmt) (env1 env2 env3 : Env),
-  YMultiStep (yprog, env1) (YSkip, env2) ->
-  YMultiStep (yprog, env1) (YSkip, env3) -> 
-  env2 = env3.
-Proof. Admitted.
-
 Lemma add_cannot_be_used_with_empty_stack : 
   forall (xprog1 xprog2 : XProgram) (stack : XStack) (env1 env2 : Env),
   XMultiExec (XAdd :: xprog1, empty_stack, env1)  (xprog2, stack, env2) -> False.
@@ -673,13 +657,99 @@ Theorem semantic_preserved_by_skip :
   semantic_preserved YSkip.
 Proof. Admitted.
 
-Theorem y_sequence_is_like_piping_outputs : 
-  forall (yprog1 yprog2 : YStmt) (env0 env1 env2 env3 : Env),
-  YMultiStep (yprog1, env0) (YSkip, env1) ->
-  YMultiStep (yprog2, env1) (YSkip, env2) ->
-  YMultiStep (YSeq yprog1 yprog2, env0) (YSkip, env3) ->
+Theorem ysmallstep_is_unique : forall (yprog1 yprog2 yprog3 : YStmt) (env1 env2 env3 : Env),
+   YStep (yprog1, env1) (yprog2, env2) -> 
+   YStep (yprog1, env1) (yprog3, env3) ->
+   (yprog2, env2) = (yprog3, env3).
+Proof. Admitted.
+
+Theorem y_finalstep_exists : forall (yprog : YStmt) (env1 : Env),
+  exists env2, YisFinalStateOf yprog env1 env2.
+Proof. Admitted.
+
+Theorem y_finalstep_is_unique : forall (yprog : YStmt) (env1 env2 env3 : Env),
+  YMultiStep (yprog, env1) (YSkip, env2) ->
+  YMultiStep (yprog, env1) (YSkip, env3) -> 
   env2 = env3.
 Proof. Admitted.
+
+Print YMultiStep. Print YStep.
+
+
+Theorem skip_dont_change_env :
+  forall (env1 env2 : Env), 
+  YMultiStep (YSkip, env1) (YSkip, env2) ->
+  env1 = env2.
+Proof. Admitted.
+
+(*
+Theorem expr_reduction_dont_change_env :
+  YMultiStep (YAssign, env1) (YSkip, env2)
+
+Theorem y_smallstep_is_like_piping_outputs :
+  forall (str1 str2 : string) (env1 env2 env3: Env) (n1 n2 : nat),
+  YStep (YAssign str1 (YConst n1), env1) (YSkip, env2) ->
+  YStep (YAssign str2 (YConst n2), env2) (YSkip, env3) -> 
+  YStep (YSeq (YAssign str1 (YConst n1))
+              (YAssign str2 (YConst n2)), env1) (YAssign str2 (YConst n2), env2).
+Proof.
+   Admitted.
+
+
+Theorem test : 
+  forall (str1 str2 : string) (env1 env2 env3: Env) (n1 n2 : nat),
+  YStep (YAssign str1 (YConst n1), env1) (YSkip, env2) ->
+  YStep (YAssign str2 (YConst n2), env2) (YSkip, env3) ->
+  YMultiStep (YSeq (YAssign str1 (YConst n1))
+                   (YAssign str2 (YConst n2)), env1) (YSkip, env3).
+Proof.
+  Admitted.
+*)
+
+Theorem helper_y1 : 
+  forall (yprog1 yprog2 : YStmt) (env1 env2 env3 : Env),
+  well_defined (YSeq yprog1 yprog2) ->
+  YMultiStep (yprog1, env1) (YSkip, env2) ->
+  YMultiStep (yprog2, env2) (YSkip, env3) ->
+  YMultiStep (YSeq yprog1 yprog2, env1) (YSkip, env3).
+Proof.
+  intros. destruct yprog1.
+  - apply skip_dont_change_env in H0. subst. 
+    assert (YMultiStep (YSeq YSkip yprog2, env2) (yprog2, env2)).
+    { Search YSkip. apply YMultiStep_smallStep. apply YStep_Skip. }
+    apply YMultiStep_trans with yprog2 env2.
+    * assumption. * assumption.
+  - apply YMultiStep_trans with yprog2 env2.
+    * assert (exists n, YMultiStep_expr env1 y (YConst n)).
+      { inversion H. subst.
+        admit. 
+        (* apply expr_multistep_always_reachs_end in H.*) }
+      destruct H2 as [n].
+      assert (env2 = (s ⊢> n; env1)).
+      { admit. }
+      subst.
+      assert (YMultiStep (YSeq (YAssign s y) yprog2, env1)
+                         (YSeq (YAssign s (YConst n)) yprog2, env1)).
+      { admit. }
+      apply YMultiStep_trans with (YSeq (YAssign s (YConst n)) yprog2) env1.
+      + assumption.
+      + apply YMultiStep_smallStep. apply YStep_Assgn2.
+    * assumption.
+  - inversion H.
+
+Theorem y_sequence_is_like_piping_outputs : 
+  forall (yprog1 yprog2 : YStmt) (env1 env2 env3 env4: Env),
+  YMultiStep (yprog1, env1) (YSkip, env2) ->
+  YMultiStep (yprog2, env2) (YSkip, env3) ->
+  YMultiStep (YSeq yprog1 yprog2, env1) (YSkip, env4) ->
+  env3 = env4.
+Proof.
+  intros. 
+  assert (YMultiStep (YSeq yprog1 yprog2, env1) (YSkip, env3)).
+  { apply helper_y1 with env2. assumption. assumption. }
+  apply y_finalstep_is_unique with (YSeq yprog1 yprog2) env1.
+  - assumption. - assumption.
+Qed.
 
 Theorem zero_step_dont_change_env : forall (xprog : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack),
   XMultiExec (xprog, stack1, env1) (xprog, stack2, env2) ->
