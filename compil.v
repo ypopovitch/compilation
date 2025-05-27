@@ -18,7 +18,7 @@ From Hammer Require Import Tactics.
 (* bdestruct *)
 
 Lemma eqb_reflect : forall x y, reflect (x = y) (x =? y).
-Proof. 
+Proof.
   intros x y. apply iff_reflect. symmetry.
   apply Nat.eqb_eq.
 Qed.
@@ -71,12 +71,12 @@ From Hammer Require Import Tactics.
 
 Definition total_map (A : Type) := string -> A.
 Definition t_empty {A : Type} (v : A) : total_map A :=  (fun _ => v).
-Definition t_update {A : Type} (m : total_map A) (x : string) (v : A) := 
+Definition t_update {A : Type} (m : total_map A) (x : string) (v : A) :=
   fun x' => if String.eqb x x' then v else m x'.
-  
+
 Notation "'_' '!->' v" := (t_empty v)
   (at level 100, right associativity).
-  
+
 Notation "x '!->' v ';' m" := (t_update m x v)
  (at level 100, v at next level, right associativity).
 
@@ -85,28 +85,28 @@ Definition Env := total_map (option nat).
 Definition empty_env : Env :=  t_empty None.
 
 Definition update_env (m : Env) (x : string) (n : nat) :=  (x !-> Some n ; m).
- 
+
 Notation "x '⊢>' v ';' m" := (update_env m x v) (at level 100, v at next level, right associativity).
- 
+
 Notation "x '⊢>' v" := (update_env empty_env x v) (at level 100).
-  
+
 Example example_env := "a" ⊢> 3 ; "c" ⊢> 6.
 
 Lemma env_value_is_unique : forall (str : string) (n1 n2 : nat) (env : Env),
   env str = Some n1 ->
   env str = Some n2 ->
   n1 = n2.
-Proof. 
+Proof.
   sauto. Qed.
 
 (* langages definitions *)
- 
+
 Inductive YExpr :=
     | YConst : nat -> YExpr
     | YVar : string -> YExpr
     | YAdd : YExpr -> YExpr -> YExpr
     | YMul : YExpr -> YExpr -> YExpr.
- 
+
 Inductive YStmt :=
     | YSkip
     | YAssign : string -> YExpr -> YStmt
@@ -118,14 +118,14 @@ Inductive XInstr :=
     | XLoadConst : nat -> XInstr
     | XLoadAdrs : string -> XInstr
     | XStore : string -> XInstr.
- 
+
 Definition XProgram := list XInstr.
 Definition XStack := list nat.
 Definition empty_xprog : list XInstr := nil.
 Definition empty_stack : list nat := nil.
 
 (* compilation *)
- 
+
 Fixpoint compile_expr (yexpr : YExpr) (xprog : XProgram) :=
   match yexpr with
   | YConst n => XLoadConst n :: xprog
@@ -133,7 +133,7 @@ Fixpoint compile_expr (yexpr : YExpr) (xprog : XProgram) :=
   | YAdd yexpr1 yexpr2 => compile_expr yexpr1 (compile_expr yexpr2 (XAdd :: xprog))
   | YMul yexpr1 yexpr2 => compile_expr yexpr1 (compile_expr yexpr2 (XMul :: xprog))
   end.
- 
+
 Fixpoint compile (yprog : YStmt) (xprog : XProgram) :=
   match yprog with
   | YSkip => xprog
@@ -141,8 +141,24 @@ Fixpoint compile (yprog : YStmt) (xprog : XProgram) :=
   | YSeq stmt1 stmt2 => compile stmt1 (compile stmt2 xprog)
   end.
 
+
 (* small and big step semantics *)
- 
+
+Inductive well_defined_expr : Env -> YExpr -> Prop :=
+  | WellDef_Const : forall (env : Env) (n : nat),
+    well_defined_expr env (YConst n)
+  | WellDef_Var : forall (env : Env) (str : string) (n : nat),
+    (env str = Some n) ->
+    well_defined_expr env (YVar str)
+  | WellDef_Add : forall (env : Env) (yexpr1 yexpr2 : YExpr),
+    well_defined_expr env yexpr1 ->
+    well_defined_expr env yexpr2 ->
+    well_defined_expr env (YAdd yexpr1 yexpr2)
+  | WellDef_Mul : forall (env : Env) (yexpr1 yexpr2 : YExpr),
+    well_defined_expr env yexpr1 ->
+    well_defined_expr env yexpr2 ->
+    well_defined_expr env (YMul yexpr1 yexpr2).
+
 Inductive YStep_expr (env : Env) : YExpr -> YExpr -> Prop :=
   | YStep_Var : forall (s : string) (n : nat) (H : env s = Some n),
     YStep_expr env (YVar s) (YConst n)
@@ -162,16 +178,22 @@ Inductive YStep_expr (env : Env) : YExpr -> YExpr -> Prop :=
     YStep_expr env (YMul (YConst n1) yexpr2) (YMul (YConst n1) yexpr2')
   | YStep_Mul3 : forall (n1 n2 : nat),
     YStep_expr env (YMul (YConst n1) (YConst n2)) (YConst (n1 * n2)).
- 
+
 Inductive YStep : (YStmt * Env) -> (YStmt * Env) -> Prop :=
-  | YStep_Skip : forall (env : Env) (yprog : YStmt),
+  | YStep_Assgn_reduce : forall (env : Env) (s : string) (yexpr yexpr': YExpr),
+    YStep_expr env yexpr yexpr' ->
+    YStep (YAssign s yexpr, env) (YAssign s yexpr', env)
+  | YStep_Assgn_store : forall (env : Env) (n : nat) (s : string),
+    YStep (YAssign s (YConst n), env) (YSkip, s ⊢> n ; env)
+  | YStep_Seq_Skip : forall (env : Env) (yprog : YStmt),
     YStep (YSeq YSkip yprog, env) (yprog, env)
-  | YStep_Assgn1 : forall (env : Env) (yprog : YStmt) (s : string) (yexpr yexpr': YExpr),
+  | YStep_Seq_Assgn_reduce : 
+    forall (env : Env) (yprog : YStmt) (s : string) (n : nat) (yexpr yexpr': YExpr),
     YStep_expr env yexpr yexpr' ->
     YStep (YSeq (YAssign s yexpr) yprog, env) (YSeq (YAssign s yexpr') yprog, env)
-  | YStep_Assgn2 : forall (env : Env) (yprog : YStmt) (s : string) (n : nat),
+  | YStep_Seq_Assgn_store : forall (env : Env) (yprog : YStmt) (s : string) (n : nat),
     YStep (YSeq (YAssign s (YConst n)) yprog, env) (yprog, s ⊢> n ; env).
- 
+
 Inductive XExec : (XProgram * XStack * Env) -> (XProgram * XStack * Env) -> Prop :=
   | XEx_Self : forall (xprog : XProgram) (stack : XStack) (env : Env),
      XExec (xprog, stack, env) (xprog, stack, env)
@@ -194,7 +216,7 @@ Inductive YMultiStep_expr (env : Env) : YExpr -> YExpr -> Prop :=
   | YMultiStep_expr_trans : forall (yexpr1 yexpr2 yexpr3 : YExpr),
     YMultiStep_expr env yexpr1 yexpr2 -> YMultiStep_expr env yexpr2 yexpr3 ->
     YMultiStep_expr env yexpr1 yexpr3.
- 
+
 Inductive YMultiStep : (YStmt * Env) -> (YStmt * Env) -> Prop :=
   | YMultiStep_smallStep : forall (yprog1 yprog2 : YStmt) (env1 env2 : Env),
     YStep (yprog1, env1) (yprog2, env2) -> YMultiStep (yprog1, env1) (yprog2, env2)
@@ -202,7 +224,7 @@ Inductive YMultiStep : (YStmt * Env) -> (YStmt * Env) -> Prop :=
     YMultiStep (yprog1, env1) (yprog2, env2) ->
     YMultiStep (yprog2, env2) (yprog3, env3) ->
     YMultiStep (yprog1, env1) (yprog3, env3).
- 
+
 Inductive XMultiExec : (XProgram * XStack * Env) -> (XProgram * XStack * Env) -> Prop :=
   | XMultiExec_smallExec : forall (xprog1 xprog2 : XProgram) (stack1 stack2 : XStack) (env1 env2 : Env),
       XExec (xprog1, stack1, env1) (xprog2, stack2, env2) -> XMultiExec (xprog1, stack1, env1) (xprog2, stack2, env2)
@@ -210,7 +232,7 @@ Inductive XMultiExec : (XProgram * XStack * Env) -> (XProgram * XStack * Env) ->
       XMultiExec (xprog1, stack1, env1) (xprog2, stack2, env2) ->
       XMultiExec (xprog2, stack2, env2) (xprog3, stack3, env3) ->
       XMultiExec (xprog1, stack1, env1) (xprog3, stack3, env3).
- 
+
 Definition YisFinalStateOf (yprog1 : YStmt) (env1 env2 : Env) : Prop :=
   YMultiStep (yprog1, env1) (YSkip, env2).
 
@@ -219,26 +241,10 @@ Definition XisFinalStateOf (xprog1 : XProgram) (env1 env2 : Env) (stack : XStack
 
 (* well defined *)
 
-Inductive well_defined_expr : Env -> YExpr -> Prop :=
-  | WellDef_Const : forall (env : Env) (n : nat),
-    well_defined_expr env (YConst n)
-  | WellDef_Var : forall (env : Env) (str : string) (n : nat),
-    (env str = Some n) ->
-    well_defined_expr env (YVar str)
-  | WellDef_Add : forall (env : Env) (yexpr1 yexpr2 : YExpr),
-    well_defined_expr env yexpr1 ->
-    well_defined_expr env yexpr2 ->
-    well_defined_expr env (YAdd yexpr1 yexpr2)
-  | WellDef_Mul : forall (env : Env) (yexpr1 yexpr2 : YExpr),
-    well_defined_expr env yexpr1 ->
-    well_defined_expr env yexpr2 ->
-    well_defined_expr env (YMul yexpr1 yexpr2)
-.
-
 Inductive well_defined : Env -> YStmt -> Prop  :=
   | WellDef_Skip : forall (env : Env),
       well_defined env YSkip
-  | WellDef_Assign : forall (env : Env) (str : string) (yexpr : YExpr), 
+  | WellDef_Assign : forall (env : Env) (str : string) (yexpr : YExpr),
       well_defined_expr env yexpr ->
       well_defined env (YAssign str yexpr)
   | WellDef_Seq_Skip : forall (env : Env) (yprog : YStmt),
@@ -251,7 +257,7 @@ Inductive well_defined : Env -> YStmt -> Prop  :=
 
 (* proofs *)
 
-Theorem expr_smallstep_possible_until_const : 
+Theorem expr_smallstep_possible_until_const :
   forall (env : Env) (yexpr : YExpr),
   well_defined_expr env yexpr ->
   (exists yexpr', YStep_expr env yexpr yexpr')
@@ -259,9 +265,9 @@ Theorem expr_smallstep_possible_until_const :
 Proof.
   intros. induction yexpr.
   - right. exists n. reflexivity.
-  - left. inversion H. subst. exists (YConst n). 
+  - left. inversion H. subst. exists (YConst n).
     apply YStep_Var. assumption.
-  - inversion H. subst. apply IHyexpr1 in H3. apply IHyexpr2 in H4. 
+  - inversion H. subst. apply IHyexpr1 in H3. apply IHyexpr2 in H4.
     destruct H3. destruct H4.
     * destruct H0 as [yexpr1']. destruct H1 as [yexpr2'].
       left. exists (YAdd yexpr1' yexpr2).
@@ -269,7 +275,7 @@ Proof.
     * destruct H0 as [yexpr1'].
       left. exists (YAdd yexpr1' yexpr2).
       apply YStep_Add1. assumption.
-    * destruct H4. destruct H1 as [yexpr2']. 
+    * destruct H4. destruct H1 as [yexpr2'].
       left. exists (YAdd yexpr1 yexpr2'). destruct H0. rewrite -> H0.
       apply YStep_Add2. assumption.
       destruct H0. destruct H1. subst. left.
@@ -303,7 +309,7 @@ Proof.
   - subst. apply IHYMultiStep_expr1. reflexivity.
 Qed.
 
-Theorem expr_multi_step_add_right : 
+Theorem expr_multi_step_add_right :
   forall (env : Env) (yexpr yexpr': YExpr) (n : nat),
   YMultiStep_expr env yexpr yexpr' ->
   YMultiStep_expr env (YAdd (YConst n) yexpr) (YAdd (YConst n) yexpr').
@@ -313,7 +319,7 @@ Proof.
   - apply YMultiStep_expr_trans with (YAdd (YConst n) yexpr2).
     * assumption. * assumption. Qed.
 
-Theorem expr_multi_step_add_left : 
+Theorem expr_multi_step_add_left :
   forall (env : Env) (yexpr yexpr' yexpr2: YExpr),
   YMultiStep_expr env yexpr yexpr' ->
   YMultiStep_expr env (YAdd yexpr yexpr2) (YAdd yexpr' yexpr2).
@@ -323,7 +329,7 @@ Proof.
   - apply YMultiStep_expr_trans with (YAdd yexpr0 yexpr2).
     * assumption. * assumption. Qed.
 
-Theorem expr_multi_step_mul_right : 
+Theorem expr_multi_step_mul_right :
   forall (env : Env) (yexpr yexpr': YExpr) (n : nat),
   YMultiStep_expr env yexpr yexpr' ->
   YMultiStep_expr env (YMul (YConst n) yexpr) (YMul (YConst n) yexpr').
@@ -333,7 +339,7 @@ Proof.
   - apply YMultiStep_expr_trans with (YMul (YConst n) yexpr2).
     * assumption. * assumption. Qed.
 
-Theorem expr_multi_step_mul_left : 
+Theorem expr_multi_step_mul_left :
   forall (env : Env) (yexpr yexpr' yexpr2: YExpr),
   YMultiStep_expr env yexpr yexpr' ->
   YMultiStep_expr env (YMul yexpr yexpr2) (YMul yexpr' yexpr2).
@@ -343,10 +349,10 @@ Proof.
   - apply YMultiStep_expr_trans with (YMul yexpr0 yexpr2).
     * assumption. * assumption. Qed.
 
-Theorem expr_multistep_always_reachs_end : 
+Theorem expr_multistep_always_reachs_end :
   forall (env : Env) (yexpr : YExpr),
   well_defined_expr env yexpr ->
-  (exists n, yexpr = (YConst n)) 
+  (exists n, yexpr = (YConst n))
   \/ (exists n, YMultiStep_expr env yexpr (YConst n)).
 Proof.
   intros. induction yexpr.
@@ -363,7 +369,7 @@ Proof.
         -- apply YMultiStep_expr_smallStep. apply YStep_Add3.
     * destruct H6 as [n]. right. apply IHyexpr2 in H4.
       + destruct H4. destruct H1 as [n']. subst.
-        -- exists (n + n'). 
+        -- exists (n + n').
             apply (expr_multi_step_add_left env yexpr1 (YConst n) (YConst n')) in H0.
             apply YMultiStep_expr_trans with (YAdd (YConst n) (YConst n')).
             ++ assumption.
@@ -388,7 +394,7 @@ Proof.
         -- apply YMultiStep_expr_smallStep. apply YStep_Mul3.
     * destruct H6 as [n]. right. apply IHyexpr2 in H4.
       + destruct H4. destruct H1 as [n']. subst.
-        -- exists (n * n'). 
+        -- exists (n * n').
             apply (expr_multi_step_mul_left env yexpr1 (YConst n) (YConst n')) in H0.
             apply YMultiStep_expr_trans with (YMul (YConst n) (YConst n')).
             ++ assumption.
@@ -409,14 +415,14 @@ Theorem y_expr_smallstep_is_unique : forall (yexpr1 yexpr2 yexpr3 : YExpr) (env 
   YStep_expr env yexpr1 yexpr2 ->
   YStep_expr env yexpr1 yexpr3 ->
   yexpr2 = yexpr3.
-Proof. 
+Proof.
   intros yexpr1 yexpr2 yexpr3 env H1 H2.
   destruct yexpr1.
   - sauto.
   - sauto.
-  - generalize dependent yexpr3. 
+  - generalize dependent yexpr3.
     induction H1; intros yexpr3; sauto.
-  - generalize dependent yexpr3. 
+  - generalize dependent yexpr3.
     induction H1; intros yexpr3; sauto.
 Qed.
 
@@ -428,13 +434,13 @@ Fixpoint expr_length (yexpr : YExpr) : nat :=
   | YMul yexpr1 yexpr2 => expr_length yexpr1 + expr_length yexpr2
   end.
 
-Theorem expr_smallstep_length_decreases : 
+Theorem expr_smallstep_length_decreases :
   forall (env : Env) (yexpr1 yexpr2 : YExpr),
   YStep_expr env yexpr1 yexpr2 ->
   expr_length yexpr1 > expr_length yexpr2.
 Proof. intros. induction H; simpl; lia. Qed.
 
-Theorem expr_step_length_decreases : 
+Theorem expr_step_length_decreases :
   forall (env : Env) (yexpr1 yexpr2 : YExpr),
   YMultiStep_expr env yexpr1 yexpr2 ->
   expr_length yexpr1 > expr_length yexpr2.
@@ -444,7 +450,7 @@ Proof.
   - lia.
 Qed.
 
-Theorem expr_step_not_commutative : 
+Theorem expr_step_not_commutative :
   forall (env : Env) (yexpr1 yexpr2 : YExpr),
   YMultiStep_expr env yexpr1 yexpr2 ->
   YMultiStep_expr env yexpr2 yexpr1 ->
@@ -493,7 +499,7 @@ Proof.
       * assumption. * assumption.
 Qed.
 
-Theorem yexpr_steps_are_chained : 
+Theorem yexpr_steps_are_chained :
   forall (yexpr1 yexpr2 : YExpr) (env : Env),
   YMultiStep_expr env yexpr1 yexpr2 ->
   (forall (yexpr_chained : YExpr),
@@ -519,7 +525,7 @@ Proof.
                 ** destruct H1.
                    --- right. left. assumption.
                    --- right. right. assumption.
-            ++ subst. exfalso. 
+            ++ subst. exfalso.
                 apply (smallstep_is_atomic env yexpr1 yexpr2 yexpr0) in H0.
                 ** assumption.
                 ** assumption.
@@ -546,9 +552,9 @@ Theorem y_expr_finalstep_is_unique : forall (yexpr : YExpr) (env : Env) (n1 n2 :
   n1 = n2.
 Proof.
   intros.
-  assert (YMultiStep_expr env yexpr (YConst n2)). 
+  assert (YMultiStep_expr env yexpr (YConst n2)).
   { apply H0. }
-  apply (yexpr_steps_are_chained yexpr 
+  apply (yexpr_steps_are_chained yexpr
   (YConst n1) env H (YConst n2)) in H0.
   destruct H0.
   - apply expr_const_dont_step in H0. exfalso. assumption.
@@ -556,17 +562,17 @@ Proof.
     + apply expr_const_dont_step in H0. exfalso. assumption.
     + injection H0. intros. lia. Qed.
 
-Lemma add_cannot_be_used_with_empty_stack : 
+Lemma add_cannot_be_used_with_empty_stack :
   forall (xprog1 xprog2 : XProgram) (stack : XStack) (env1 env2 : Env),
   XMultiExec (XAdd :: xprog1, empty_stack, env1)  (xprog2, stack, env2) -> False.
 Proof. Admitted.
 
-Lemma add_cannot_be_used_with_empty_stack_smallstep : 
+Lemma add_cannot_be_used_with_empty_stack_smallstep :
   forall (xprog1 xprog2 : XProgram) (stack : XStack) (env1 env2 : Env),
   XExec (XAdd :: xprog1, empty_stack, env1)  (xprog2, stack, env2) -> False.
 Proof. Admitted.
 
-Lemma add_cannot_be_used_with_single_nat_smallstep : 
+Lemma add_cannot_be_used_with_single_nat_smallstep :
   forall (xprog1 xprog2 : XProgram) (stack : XStack) (env1 env2 : Env) (n : nat),
   XExec (XAdd :: xprog1, [n], env1)  (xprog2, stack, env2) -> False.
 Proof. Admitted.
@@ -578,26 +584,12 @@ Theorem xexec_smallstep_is_unique : forall (xprog1 xprog2 xprog3 : XProgram)
   (xprog2, stack2, env2) = (xprog3, stack3, env3).
 Proof. Admitted.
 
-(*
-  intros. induction xprog1.
-  - inversion H. subst. inversion H0. subst. reflexivity.
-  - destruct a.
-    * destruct stack1. 
-        + apply add_cannot_be_used_with_empty_stack_smallstep in H. exfalso. assumption.
-        + destruct stack1.
-            -- apply add_cannot_be_used_with_single_nat_smallstep in H. exfalso. assumption.
-            -- Print XExec. inversion H. subst. inversion H0. subst.
-                ** reflexivity.
-                ** subst. apply IHxprog1.
-                    ++
-*)
-
 Theorem xexec_finalstep_exists : forall (xprog : XProgram) (env1 : Env) (stack : XStack),
   exists env2, XisFinalStateOf xprog env1 env2 stack.
 Proof. Admitted.
 
 Theorem xexec_finalstep_is_unique : forall (xprog : XProgram) (env1 env2 env3 : Env) (stack : XStack),
-  XMultiExec (xprog, stack, env1) (empty_xprog, empty_stack, env2) -> 
+  XMultiExec (xprog, stack, env1) (empty_xprog, empty_stack, env2) ->
   XMultiExec (xprog, stack, env1) (empty_xprog, empty_stack, env3) ->
   env2 = env3.
 Proof. Admitted.
@@ -613,7 +605,7 @@ Theorem skip_dont_change_semantic : forall (yprog : YStmt) (env : Env),
 Proof. Admitted.
 
 Theorem prog_transl_is_concat_of_stmt_transl : forall (yprog1 yprog2 : YStmt) (xprog : XProgram),
-  compile (YSeq yprog1 yprog2) xprog 
+  compile (YSeq yprog1 yprog2) xprog
     = (compile yprog1 empty_xprog) ++ (compile yprog2 xprog).
 Proof. Admitted.
 
@@ -630,7 +622,7 @@ Proof.
   intros.
   remember (YAdd (YConst n1) (YConst n2)) as yexpr.
   rewrite -> Heqyexpr in H. simpl in H.
-  rewrite <- H. 
+  rewrite <- H.
   apply XMultiExec_trans with [XLoadConst n2; XAdd] [n1] env.
   - apply XMultiExec_smallExec. apply XEx_LoadC.
   - apply XMultiExec_trans with [XAdd] [n2 ; n1] env.
@@ -652,16 +644,19 @@ Theorem semantic_preserved_by_assign : forall (str: string) (yexpr: YExpr),
   semantic_preserved (YAssign str yexpr).
 Proof. Admitted.
 
-
 Theorem semantic_preserved_by_skip :
   semantic_preserved YSkip.
 Proof. Admitted.
 
 Theorem ysmallstep_is_unique : forall (yprog1 yprog2 yprog3 : YStmt) (env1 env2 env3 : Env),
-   YStep (yprog1, env1) (yprog2, env2) -> 
+   YStep (yprog1, env1) (yprog2, env2) ->
    YStep (yprog1, env1) (yprog3, env3) ->
    (yprog2, env2) = (yprog3, env3).
-Proof. Admitted.
+Proof. 
+  intros. induction yprog1.
+  - inversion H.
+  - destruct yprog2.
+    * inversion H. subst.
 
 Theorem y_finalstep_exists : forall (yprog : YStmt) (env1 : Env),
   exists env2, YisFinalStateOf yprog env1 env2.
@@ -669,64 +664,112 @@ Proof. Admitted.
 
 Theorem y_finalstep_is_unique : forall (yprog : YStmt) (env1 env2 env3 : Env),
   YMultiStep (yprog, env1) (YSkip, env2) ->
-  YMultiStep (yprog, env1) (YSkip, env3) -> 
+  YMultiStep (yprog, env1) (YSkip, env3) ->
   env2 = env3.
 Proof. Admitted.
 
-Print YMultiStep. Print YStep.
-
-
 Theorem skip_dont_change_env :
-  forall (env1 env2 : Env), 
+  forall (env1 env2 : Env),
   YMultiStep (YSkip, env1) (YSkip, env2) ->
   env1 = env2.
 Proof. Admitted.
 
-(*
-Theorem expr_reduction_dont_change_env :
-  YMultiStep (YAssign, env1) (YSkip, env2)
-
-Theorem y_smallstep_is_like_piping_outputs :
-  forall (str1 str2 : string) (env1 env2 env3: Env) (n1 n2 : nat),
-  YStep (YAssign str1 (YConst n1), env1) (YSkip, env2) ->
-  YStep (YAssign str2 (YConst n2), env2) (YSkip, env3) -> 
-  YStep (YSeq (YAssign str1 (YConst n1))
-              (YAssign str2 (YConst n2)), env1) (YAssign str2 (YConst n2), env2).
+Theorem helper_y2 :
+  forall (env1 env2 env3 : Env) (yprog1 yprog2 yprog3 : YStmt),
+  YMultiStep (yprog1, env1) (yprog2, env2) ->
+  YMultiStep (yprog1, env1) (yprog3, env3) ->
+  YMultiStep (yprog2, env2) (yprog3, env3).
 Proof.
-   Admitted.
+  
 
-
-Theorem test : 
-  forall (str1 str2 : string) (env1 env2 env3: Env) (n1 n2 : nat),
-  YStep (YAssign str1 (YConst n1), env1) (YSkip, env2) ->
-  YStep (YAssign str2 (YConst n2), env2) (YSkip, env3) ->
-  YMultiStep (YSeq (YAssign str1 (YConst n1))
-                   (YAssign str2 (YConst n2)), env1) (YSkip, env3).
+Theorem helper_y3 :
+  forall (s : string) (n : nat) (env1 env2 : Env) (yprog2 : YStmt),
+   YMultiStep (YAssign s (YConst n), env1) (yprog2, env2) ->
+  YMultiStep (YSkip, (s ⊢> n; env1)) (yprog2, env2).
 Proof.
-  Admitted.
-*)
+  intros.
+  apply helper_y2 with env1 (YAssign s (YConst n)).
+  - apply YMultiStep_smallStep. apply YStep_Assgn_store.
+  - assumption.
+Qed.
 
-Theorem helper_y1 : 
+Theorem helper_y4 : 
+  forall (env1 : Env) (yexpr yexpr': YExpr) (str : string),
+  YMultiStep_expr env1 yexpr yexpr' ->
+  YMultiStep (YAssign str yexpr, env1) (YAssign str yexpr', env1).
+Proof.
+  intros. induction H.
+  - apply YMultiStep_smallStep. apply YStep_Assgn_reduce. assumption.
+  - apply YMultiStep_trans with (YAssign str yexpr2) env1.
+    * assumption.
+    * assumption.
+Qed.
+  
+Theorem helper_y5 :
+  forall (yprog1 yprog2 : YStmt) (env1 env2 : Env),
+  YMultiStep (yprog1, env1) (YSkip, env2) ->
+  YMultiStep (YSeq yprog1 yprog2, env1) (yprog2, env2).
+Proof.
+    intros. induction yprog1.
+    - Search (YMultiStep (YSkip, _) (YSkip, _)).
+
+Theorem helper_y1 :
   forall (yprog1 yprog2 : YStmt) (env1 env2 env3 : Env),
-  well_defined (YSeq yprog1 yprog2) ->
+  well_defined env1 (YSeq yprog1 yprog2) ->
   YMultiStep (yprog1, env1) (YSkip, env2) ->
   YMultiStep (yprog2, env2) (YSkip, env3) ->
   YMultiStep (YSeq yprog1 yprog2, env1) (YSkip, env3).
 Proof.
-  intros. destruct yprog1.
-  - apply skip_dont_change_env in H0. subst. 
+  intros. induction yprog1.
+    - apply YMultiStep_smallStep. admit.
+
+  intros. apply YMultiStep_trans with yprog2 env2.
+  -  
+  - assumption.
+
+
+
+  
+  intros. induction H0.
+  -
+
+
+  intros. induction yprog1.
+  - apply skip_dont_change_env in H0. subst.
     assert (YMultiStep (YSeq YSkip yprog2, env2) (yprog2, env2)).
-    { Search YSkip. apply YMultiStep_smallStep. apply YStep_Skip. }
+    { apply YMultiStep_smallStep. apply YStep_Skip. }
     apply YMultiStep_trans with yprog2 env2.
     * assumption. * assumption.
   - apply YMultiStep_trans with yprog2 env2.
-    * assert (exists n, YMultiStep_expr env1 y (YConst n)).
+    * 
+    * assumption.
+
+  
+  
+  (*
+    apply YMultiStep_trans with yprog2 env2.
+    * assert ((exists n, y = YConst n) \/ (exists n, YMultiStep_expr env1 y (YConst n))).
       { inversion H. subst.
-        admit. 
-        (* apply expr_multistep_always_reachs_end in H.*) }
-      destruct H2 as [n].
+        apply expr_multistep_always_reachs_end in H7.
+        sauto. }
+      destruct H2.
+      + destruct H2 as [n]. subst.
+        -- 
+        apply helper_y3 in H0.
+
+
+
+
+
       assert (env2 = (s ⊢> n; env1)).
-      { admit. }
+      {  destruct H2. subst.
+        + apply helper_y3 in H0. apply skip_dont_change_env in H0. symmetry. assumption.
+        + assert (YMultiStep (YAssign s (YConst n), env1) (YSkip, env2)).
+          { apply helper_y2 with env1 (YAssign s y).
+              - apply helper_y4. destruct H2 as [n']. assert ()
+              - assumption. }
+              apply helper_y3 in H3.
+              apply skip_dont_change_env in H3. symmetry. assumption. }
       subst.
       assert (YMultiStep (YSeq (YAssign s y) yprog2, env1)
                          (YSeq (YAssign s (YConst n)) yprog2, env1)).
@@ -734,17 +777,17 @@ Proof.
       apply YMultiStep_trans with (YSeq (YAssign s (YConst n)) yprog2) env1.
       + assumption.
       + apply YMultiStep_smallStep. apply YStep_Assgn2.
-    * assumption.
+    * assumption. *)
   - inversion H.
 
-Theorem y_sequence_is_like_piping_outputs : 
+Theorem y_sequence_is_like_piping_outputs :
   forall (yprog1 yprog2 : YStmt) (env1 env2 env3 env4: Env),
   YMultiStep (yprog1, env1) (YSkip, env2) ->
   YMultiStep (yprog2, env2) (YSkip, env3) ->
   YMultiStep (YSeq yprog1 yprog2, env1) (YSkip, env4) ->
   env3 = env4.
 Proof.
-  intros. 
+  intros.
   assert (YMultiStep (YSeq yprog1 yprog2, env1) (YSkip, env3)).
   { apply helper_y1 with env2. assumption. assumption. }
   apply y_finalstep_is_unique with (YSeq yprog1 yprog2) env1.
@@ -756,29 +799,29 @@ Theorem zero_step_dont_change_env : forall (xprog : XProgram) (env1 env2 : Env) 
   env2 = env1 /\ stack1 = stack2.
 Proof. Admitted.
 
-Lemma add_cannot_be_used_with_one_number : 
+Lemma add_cannot_be_used_with_one_number :
   forall (xprog1 xprog2 : XProgram) (stack : XStack) (env1 env2 : Env) (n : nat),
   XMultiExec (XAdd :: xprog1, [n], env1)  (xprog2, stack, env2) -> False.
 Proof. Admitted.
 
-Lemma mul_cannot_be_used_with_empty_stack : 
+Lemma mul_cannot_be_used_with_empty_stack :
   forall (xprog1 xprog2 : XProgram) (stack : XStack) (env1 env2 : Env),
   XMultiExec (XMul :: xprog1, empty_stack, env1)  (xprog2, stack, env2) -> False.
 Proof. Admitted.
 
-Lemma mul_cannot_be_used_with_one_number : 
+Lemma mul_cannot_be_used_with_one_number :
   forall (xprog1 xprog2 : XProgram) (stack : XStack) (env1 env2 : Env) (n : nat),
   XMultiExec (XMul :: xprog1, [n], env1)  (xprog2, stack, env2) -> False.
 Proof. Admitted.
 
-Lemma store_cannot_be_used_with_empty_stack : 
+Lemma store_cannot_be_used_with_empty_stack :
   forall (xprog1 xprog2 : XProgram) (stack : XStack) (env1 env2 : Env) (str : string),
   XMultiExec ((XStore str) :: xprog1, empty_stack, env1)  (xprog2, stack, env2) -> False.
 Proof. Admitted.
 
 Lemma xmulti_trans : forall (xprog1 xprog2 xprog3 : XProgram) (env1 env2 env3 : Env) (stack1 stack2 stack3 : XStack) ,
   XMultiExec (xprog1, stack1, env1) (xprog2, stack2, env2) ->
-  XMultiExec (xprog2, stack2, env2) (xprog3, stack3, env3) -> 
+  XMultiExec (xprog2, stack2, env2) (xprog3, stack3, env3) ->
   XMultiExec (xprog1, stack1, env1) (xprog3, stack3, env3).
 Proof.
   intros. apply XMultiExec_trans with xprog2 stack2 env2.
@@ -804,7 +847,7 @@ Lemma helper3 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stac
 XMultiExec ((XLoadConst n) :: xprog1, stack1, env1) (xprog2, stack2, env2)
 <->
 XMultiExec (xprog1, n :: stack1, env1) (xprog2, stack2, env2).
-Proof. 
+Proof.
   intros. split.
   - intros. assert (XMultiExec (XLoadConst n :: xprog1, stack1, env1)  (xprog1, n :: stack1, env1)).
     { apply XMultiExec_smallExec. apply XEx_LoadC. }
@@ -819,7 +862,7 @@ Lemma helper4 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stac
 (XMultiExec ((XLoadAdrs str) :: xprog1, stack1, env1) (xprog2, stack2, env2) /\ (env1 str = Some n))
 <->
 (XMultiExec (xprog1, n :: stack1, env1) (xprog2, stack2, env2) /\ (env1 str = Some n)) .
-Proof. 
+Proof.
   intros. split.
   - intros. destruct H. split.
     + apply helper11 with (XLoadAdrs str :: xprog1) env1 stack1.
@@ -833,10 +876,10 @@ Proof.
     + assumption. Qed.
 
 Lemma helper5 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack) (str : string) (n : nat),
-XMultiExec ((XStore str) :: xprog1, n :: stack1, env1) (xprog2, stack2, env2) 
+XMultiExec ((XStore str) :: xprog1, n :: stack1, env1) (xprog2, stack2, env2)
 <->
 XMultiExec (xprog1, stack1, str ⊢> n ; env1) (xprog2, stack2, env2).
-Proof. 
+Proof.
   intros. split.
   - intros. apply helper11 with (XStore str :: xprog1) env1 (n :: stack1).
     * apply XEx_Store.
@@ -846,10 +889,10 @@ Proof.
     * assumption. Qed.
 
 Lemma helper6 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack) (n1 n2 : nat),
-XMultiExec (XAdd :: xprog1, n1 :: n2 :: stack1, env1) (xprog2, stack2, env2) 
+XMultiExec (XAdd :: xprog1, n1 :: n2 :: stack1, env1) (xprog2, stack2, env2)
 <->
 XMultiExec (xprog1, (n1 + n2) :: stack1, env1) (xprog2, stack2, env2).
-Proof. 
+Proof.
   intros. split.
   - intros. apply helper11 with (XAdd :: xprog1) env1 (n1 :: n2 :: stack1).
     * apply XExec_Add.
@@ -859,7 +902,7 @@ Proof.
     * assumption. Qed.
 
 Lemma helper7 : forall (xprog1 xprog2 : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack) (n1 n2 : nat),
-XMultiExec (XMul :: xprog1, n1 :: n2 :: stack1, env1) (xprog2, stack2, env2) 
+XMultiExec (XMul :: xprog1, n1 :: n2 :: stack1, env1) (xprog2, stack2, env2)
 <->
 XMultiExec (xprog1, (n1 * n2) :: stack1, env1) (xprog2, stack2, env2).
 Proof.
@@ -871,7 +914,7 @@ Proof.
     * apply XMultiExec_smallExec. apply XExec_Mul.
     * assumption. Qed.
 
-Lemma load_execs_only_if_var_is_known : 
+Lemma load_execs_only_if_var_is_known :
   forall  (xprog1 : XProgram) (env1 env2 : Env) (stack1 : XStack) (s : string),
   XMultiExec (XLoadAdrs s :: xprog1, stack1, env1) ([], empty_stack, env2) ->
   exists n, (env1 s = Some n).
@@ -889,13 +932,13 @@ Proof.
   - intros. destruct a.
     * destruct stack.
       + apply add_cannot_be_used_with_empty_stack in H. exfalso. assumption.
-      + destruct stack. 
+      + destruct stack.
           -- apply add_cannot_be_used_with_one_number in H. exfalso. assumption.
           -- rewrite -> helper6 in H. apply (IHxprog1 env0 (n + n0 :: stack)) in H.
               rewrite <- helper6 in H. assumption.
     * destruct stack.
       + apply mul_cannot_be_used_with_empty_stack in H. exfalso. assumption.
-      + destruct stack. 
+      + destruct stack.
           -- apply mul_cannot_be_used_with_one_number in H. exfalso. assumption.
           -- rewrite -> helper7 in H. apply (IHxprog1 env0 (n * n0 :: stack)) in H.
               rewrite <- helper7 in H. assumption.
@@ -913,11 +956,11 @@ Proof.
         apply (IHxprog1 env0 (n :: stack)) in H2.
         assert (XMultiExec (xprog1 ++ xprog2, n :: stack, env0) ([], empty_stack, env2) /\ env0 s = Some n).
         { split. apply H2. apply H3. } rewrite <- helper4 in H4. destruct H4. assumption.
-   * destruct stack. 
+   * destruct stack.
       + apply store_cannot_be_used_with_empty_stack in H. exfalso. assumption.
         + rewrite -> helper5 in H.
           apply (IHxprog1 (s ⊢> n; env0) stack) in H.
-          rewrite <- helper5 in H. assumption. Qed. 
+          rewrite <- helper5 in H. assumption. Qed.
 
 Theorem semantic_preserved_by_seq : forall (yprog1 yprog2 : YStmt),
   semantic_preserved yprog1 ->
@@ -952,7 +995,7 @@ Proof.
   rewrite <- H9 in *. rewrite <- H6 in *. clear H9. clear H6. clear H. clear H0.
   clear env0''. clear env1''.
   assert (env1' = env1). {
-    apply (y_sequence_is_like_piping_outputs 
+    apply (y_sequence_is_like_piping_outputs
               yprog1 yprog2 env0 env0' env1' env1) .
     * assumption.
     * assumption.
@@ -965,12 +1008,12 @@ Proof.
   apply (xexec_finalstep_is_unique xprog env0 env2 env1' empty_stack).
   * assumption.
   * assumption. }
-  rewrite <- H. assumption. Qed. 
+  rewrite <- H. assumption. Qed.
 
 Theorem well_defined_applies_to_sub_seq_left : forall (yprog1 yprog2 : YStmt),
   well_defined (YSeq yprog1 yprog2) ->
   well_defined yprog1.
-Proof. 
+Proof.
   intros. inversion H.
   - constructor.
   - constructor. Qed.
@@ -978,7 +1021,7 @@ Proof.
 Theorem well_defined_applies_to_sub_seq_right : forall (yprog1 yprog2 : YStmt),
   well_defined (YSeq yprog1 yprog2) ->
   well_defined yprog2.
-Proof. 
+Proof.
   intros. inversion H.
   - assumption.
   - assumption. Qed.
@@ -986,7 +1029,7 @@ Proof.
 Theorem semantic_preserved_always : forall (yprog : YStmt),
   well_defined yprog ->
   semantic_preserved yprog.
-Proof. 
+Proof.
   intros. induction yprog.
   - apply semantic_preserved_by_skip.
   - apply semantic_preserved_by_assign.
