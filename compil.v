@@ -772,7 +772,8 @@ Theorem y_step_seq_assgn_reduce :
   forall (env env' : Env) (yexpr : YExpr) (str : string) (yprog2 : YStmt),
   YMultiStep (YAssign str yexpr) env YSkip env' ->
   YMultiStep (YSeq (YAssign str yexpr) yprog2) env yprog2 env'.
-Proof. Admitted.
+Proof.
+Admitted.
 (*
   intros. induction H.
   - apply YMultiStep_smallStep. apply YStep_Assgn_reduce. assumption.
@@ -781,11 +782,94 @@ Proof. Admitted.
     * assumption.
 Qed. *)
 
+Theorem y_step_si_1_2_et_1_3_alors_2_3 :
+  forall (env1 env2 env3 : Env) (yprog1 yprog2 yprog3 : YStmt),
+  YStep (yprog1, env1) (yprog2, env2) ->
+  YMultiStep yprog1 env1 yprog3 env3 ->
+  (YMultiStep yprog2 env2 yprog3 env3 \/ ((yprog2, env2) = (yprog3, env3))).
+Proof.
+  intros. induction H0.
+  - right. Search YStep. apply ysmallstep_is_unique with yprog1 env1.
+    assumption. assumption.
+  - apply IHYMultiStep1 in H. destruct H.
+    * left. sauto.
+    * sauto.
+Qed.
+
+Theorem y_step_seq_assgn_left_reduce :
+  forall (env1 env3 : Env) (yexpr yexpr' : YExpr) (yprog2 yprog3 : YStmt) (str : string),
+  well_defined_expr env1 yexpr ->
+  YMultiStep (YSeq (YAssign str yexpr) yprog2) env1 yprog3 env3 ->
+  YMultiStep_expr env1 yexpr yexpr' ->
+  YMultiStep (YSeq (YAssign str yexpr') yprog2) env1 yprog3 env3.
+Proof. Admitted.
+
+Theorem y_sequence_is_like_piping_outputs :
+  forall (yprog1 yprog2 : YStmt) (env1 env2 env3 : Env),
+  well_defined env1 (YSeq yprog1 yprog2) ->
+  YMultiStep yprog1 env1 YSkip env2 ->
+  YMultiStep yprog2 env2 YSkip env3 ->
+  YMultiStep (YSeq yprog1 yprog2) env1 YSkip env3.
+Proof.
+  intros. induction yprog1.
+  - apply yskip_dont_step in H0. exfalso. assumption.
+  - assert (exists n, YMultiStep (YSeq (YAssign s y) yprog2) env1 
+                                 (YSeq (YAssign s (YConst n)) yprog2) env1).
+    { admit. }
+    destruct H2 as [n].
+    assert (YMultiStep (YSeq (YAssign s (YConst n)) yprog2) env1 YSkip env3).
+    { apply y_step_seq_assgn_left_reduce with (YConst n).
+      * admit.
+      * admit.
+      * admit. }
+    Print YStep.
+    assert ( YStep (YSeq (YAssign s (YConst n)) yprog2, env1)
+                              (yprog2, s ⊢> n; env1)). { admit. }
+    assert (YMultiStep yprog2 (s ⊢> n; env1) YSkip env3).
+    { admit. }
+    apply YMultiStep_trans with (YSeq (YAssign s (YConst n)) yprog2) env1.
+    assumption. assumption.
+  - 
+
+(*
+  intros. induction yprog1.
+  - apply yskip_dont_step in H0. exfalso. assumption.
+  - assert (YMultiStep (YSeq (YAssign s y) yprog2) env1 yprog2 env2).
+    { apply y_step_seq_assgn_reduce. assumption. }
+    apply YMultiStep_trans with yprog2 env2.
+    + assumption. + assumption.
+Admitted. *)
+
+Theorem y_sequence_is_like_piping_outputs :
+  forall (yprog1 yprog2 : YStmt) (env1 env2 env3 env4: Env),
+  YMultiStep yprog1 env1 YSkip env2 ->
+  YMultiStep yprog2 env2 YSkip env3 ->
+  YMultiStep (YSeq yprog1 yprog2) env1 YSkip env4 ->
+  env3 = env4.
+Proof.
+  intros.
+  assert (YMultiStep (YSeq yprog1 yprog2) env1 YSkip env3).
+  { apply helper_y1 with env2. admit. }
+  apply y_finalstep_is_unique with (YSeq yprog1 yprog2) env1.
+  - assumption. - assumption.
+  Admitted.
+
 Theorem remove_last_skip :
   forall (yprog1 yprog2 : YStmt) (env1 env2 : Env),
-  YMultiStep (YSeq yprog1 YSkip) env1 yprog2 env2 <->
-  YMultiStep yprog1 env1 yprog2 env2.
-Proof. Admitted.
+  well_defined env1 yprog1 ->
+  YMultiStep yprog1 env1 yprog2 env2 ->
+  YMultiStep (YSeq yprog1 YSkip) env1 yprog2 env2.
+Proof.
+  intros. induction yprog1.
+  - apply yskip_dont_step in H0. exfalso. assumption.
+  - inversion H; subst.
+    apply expr_multistep_always_reachs_end in H3.
+    destruct H3.
+    * destruct H1 as [n]. subst. Check YStep_Seq_Assgn_store.
+      assert (YMultiStep (YAssign s (YConst n)) env1 YSkip (s ⊢> n; env1)).
+      + apply YMultiStep_smallStep. apply YStep_Assgn_store.
+Admitted.
+
 
 Theorem well_defined_remains_after_step :
   forall (yprog1 yprog2 : YStmt) (env1 env2 : Env),
@@ -830,7 +914,7 @@ Proof.
             apply YMultiStep_trans with yprog2 env2.
             ** apply y_step_seq_assgn_reduce. assumption.
             ** assumption.
-        -- subst. exists env2. rewrite -> remove_last_skip. assumption.
+        -- subst. exists env2. apply remove_last_skip. assumption.
       + discriminate.
 Qed.
 
@@ -910,14 +994,6 @@ Theorem skip_dont_change_env :
   env1 = env2.
 Proof. Admitted.
 
-Theorem helper_y2 :
-  forall (env1 env2 env3 : Env) (yprog1 yprog2 yprog3 : YStmt),
-  YMultiStep yprog1 env1 yprog2 env2 ->
-  YMultiStep yprog1 env1 yprog3 env3 ->
-  YMultiStep yprog2 env2 yprog3 env3.
-Proof.
-  Admitted.
-
 Theorem helper_y3 :
   forall (s : string) (n : nat) (env1 env2 : Env) (yprog2 : YStmt),
    YMultiStep (YAssign s (YConst n)) env1 yprog2 env2 ->
@@ -935,28 +1011,6 @@ Theorem helper_y5 :
   YMultiStep yprog1 env1 YSkip env2 ->
   YMultiStep (YSeq yprog1 yprog2) env1 yprog2 env2.
 Proof. Abort.
-
-Theorem helper_y1 :
-  forall (yprog1 yprog2 : YStmt) (env1 env2 env3 : Env),
-  well_defined env1 (YSeq yprog1 yprog2) ->
-  YMultiStep yprog1 env1 YSkip env2 ->
-  YMultiStep yprog2 env2 YSkip env3 ->
-  YMultiStep (YSeq yprog1 yprog2) env1 YSkip env3.
-Proof. Admitted.
-
-Theorem y_sequence_is_like_piping_outputs :
-  forall (yprog1 yprog2 : YStmt) (env1 env2 env3 env4: Env),
-  YMultiStep yprog1 env1 YSkip env2 ->
-  YMultiStep yprog2 env2 YSkip env3 ->
-  YMultiStep (YSeq yprog1 yprog2) env1 YSkip env4 ->
-  env3 = env4.
-Proof.
-  intros.
-  assert (YMultiStep (YSeq yprog1 yprog2) env1 YSkip env3).
-  { apply helper_y1 with env2. admit. }
-  apply y_finalstep_is_unique with (YSeq yprog1 yprog2) env1.
-  - assumption. - assumption.
-  Admitted.
 
 Theorem zero_step_dont_change_env : forall (xprog : XProgram) (env1 env2 : Env) (stack1 stack2 : XStack),
   XMultiExec (xprog, stack1, env1) (xprog, stack2, env2) ->
