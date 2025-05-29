@@ -773,7 +773,6 @@ Theorem y_step_seq_assgn_reduce :
   YMultiStep (YAssign str yexpr) env YSkip env' ->
   YMultiStep (YSeq (YAssign str yexpr) yprog2) env yprog2 env'.
 Proof.
-Admitted.
 (*
   intros. induction H.
   - apply YMultiStep_smallStep. apply YStep_Assgn_reduce. assumption.
@@ -782,6 +781,7 @@ Admitted.
     * assumption.
 Qed. *)
 
+(*
 Theorem y_step_si_1_2_et_1_3_alors_2_3 :
   forall (env1 env2 env3 : Env) (yprog1 yprog2 yprog3 : YStmt),
   YStep (yprog1, env1) (yprog2, env2) ->
@@ -794,15 +794,28 @@ Proof.
   - apply IHYMultiStep1 in H. destruct H.
     * left. sauto.
     * sauto.
-Qed.
+Qed. *)
+
 
 Theorem y_step_seq_assgn_left_reduce :
   forall (env1 env3 : Env) (yexpr yexpr' : YExpr) (yprog2 yprog3 : YStmt) (str : string),
   well_defined_expr env1 yexpr ->
-  YMultiStep (YSeq (YAssign str yexpr) yprog2) env1 yprog3 env3 ->
+  YMultiStep (YSeq (YAssign str yexpr') yprog2) env1 yprog3 env3 ->
   YMultiStep_expr env1 yexpr yexpr' ->
-  YMultiStep (YSeq (YAssign str yexpr') yprog2) env1 yprog3 env3.
+  YMultiStep (YSeq (YAssign str yexpr) yprog2) env1 yprog3 env3.
 Proof. Admitted.
+
+
+(*
+Theorem y_step_seq_left_reduce :
+  forall (env1 env1' env3 : Env) (yexpr yexpr' : YExpr) (yprog1 yprog1' yprog2 yprog3 : YStmt),
+  well_defined_expr env1 yexpr ->
+  YMultiStep (YSeq yprog1 yprog2) env1 yprog3 env3 ->
+  YMultiStep yprog1 env1 yprog1' env1' ->
+  YMultiStep (YSeq yprog1' yprog2) env1 yprog3 env3.
+Proof.
+  Admitted.
+*)
 
 Theorem y_sequence_is_like_piping_outputs :
   forall (yprog1 yprog2 : YStmt) (env1 env2 env3 : Env),
@@ -813,29 +826,74 @@ Theorem y_sequence_is_like_piping_outputs :
 Proof.
   intros. induction yprog1.
   - apply yskip_dont_step in H0. exfalso. assumption.
-  - assert (exists n, YMultiStep (YSeq (YAssign s y) yprog2) env1 
-                                 (YSeq (YAssign s (YConst n)) yprog2) env1).
+  - assert ((exists n, YMultiStep_expr env1 y (YConst n)) 
+            \/ (exists n, y = (YConst n))).
+    { admit. }
+    destruct H2.
+    * destruct H2 as [n]. apply y_step_seq_assgn_left_reduce with (YConst n).
+      + admit.
+      + apply YMultiStep_trans with yprog2 env2.
+        -- apply no_smallstep_expr_self. admit.
+        -- assumption.
+      + assumption.
+    * destruct H2 as [n]; subst. 
+      apply YMultiStep_trans with yprog2 env2.
+      + assert (env2 = (s ⊢> n; env1)). { admit. } subst.
+        apply YMultiStep_smallStep. apply YStep_Seq_Assgn_store.
+      + assumption.
+  - inversion H.
+
+  
+
+
+  intros. induction yprog1.
+  - apply yskip_dont_step in H0. exfalso. assumption.
+  - assert (exists n, YMultiStep (YSeq (YAssign s (YConst n)) yprog2) env1 YSkip env3).
     { admit. }
     destruct H2 as [n].
+
+    assert ((exists n, YMultiStep (YSeq (YAssign s y) yprog2) env1 
+                                 (YSeq (YAssign s (YConst n)) yprog2) env1)
+            \/ (exists n, y = YConst n)).
+    { admit. }
+    destruct H2. destruct H2 as [n].
+    *
+
+  intros. induction yprog1.
+  - apply yskip_dont_step in H0. exfalso. assumption.
+  - assert ((exists n, YMultiStep (YSeq (YAssign s y) yprog2) env1 
+                                 (YSeq (YAssign s (YConst n)) yprog2) env1)
+            \/ (exists n, y = YConst n)).
+    { assert (well_defined_expr env1 y). { sauto. } 
+      apply expr_multistep_always_reachs_end in H2.
+      destruct H2. destruct H2 as [n]. subst.
+      * right. exists n. reflexivity.
+      * left. destruct H2 as [n]. exists n.
+        apply YMultiStep_smallStep. Print YStep. admit.   }
+    destruct H2. destruct H2 as [n].
     assert (YMultiStep (YSeq (YAssign s (YConst n)) yprog2) env1 YSkip env3).
     { apply y_step_seq_assgn_left_reduce with (YConst n).
       * admit.
       * admit.
       * admit. }
-    Print YStep.
     assert ( YStep (YSeq (YAssign s (YConst n)) yprog2, env1)
                               (yprog2, s ⊢> n; env1)). { admit. }
     assert (YMultiStep yprog2 (s ⊢> n; env1) YSkip env3).
     { admit. }
     apply YMultiStep_trans with (YSeq (YAssign s (YConst n)) yprog2) env1.
     assumption. assumption.
-  - 
+    destruct H2 as [n]. subst.
+    assert (env2 = (s ⊢> n; env1)). { admit. }
+    assert (YStep ((YAssign s (YConst n)), env1) (YSkip, env2)).
+    { subst. apply YStep_Assgn_store. }
+    Print YStep. subst.
+  - inversion H.
 
 (*
   intros. induction yprog1.
   - apply yskip_dont_step in H0. exfalso. assumption.
   - assert (YMultiStep (YSeq (YAssign s y) yprog2) env1 yprog2 env2).
-    { apply y_step_seq_assgn_reduce. assumption. }
+    { apply no_smallstep_expr_self. assumption. }
     apply YMultiStep_trans with yprog2 env2.
     + assumption. + assumption.
 Admitted. *)
@@ -912,7 +970,7 @@ Proof.
         apply (IHyprog2 env2) in H1. destruct H1.
         --  destruct H1 as [env4]. exists env4.
             apply YMultiStep_trans with yprog2 env2.
-            ** apply y_step_seq_assgn_reduce. assumption.
+            ** apply no_smallstep_expr_self. assumption.
             ** assumption.
         -- subst. exists env2. apply remove_last_skip. assumption.
       + discriminate.
