@@ -474,7 +474,7 @@ Proof.
   lia.
 Qed.
 
-Theorem no_smallstep_self :
+Theorem no_smallstep_expr_self :
   forall (env : Env) (yexpr : YExpr),
   YMultiStep_expr env yexpr yexpr -> False.
 Proof.
@@ -503,7 +503,7 @@ Theorem smallstep_expr_is_atomic :
 Proof.
   intros. generalize dependent yexpr3. induction H0.
   - intros. assert (yexpr2 = yexpr3). { apply y_expr_smallstep_is_unique with yexpr1 env. assumption. assumption. }
-    subst. apply no_smallstep_self in H1. assumption.
+    subst. apply no_smallstep_expr_self in H1. assumption.
   - intros. apply IHYMultiStep_expr1 with yexpr0.
     + assumption.
     + apply YMultiStep_expr_trans with yexpr3.
@@ -651,25 +651,52 @@ Proof.
     * assumption.
 Qed.
 
+Theorem step_not_commutative :
+  forall (env1 env2 : Env) (yprog1 yprog2 : YStmt),
+  YMultiStep yprog1 env1 yprog2 env2 ->
+  YMultiStep yprog2 env2 yprog1 env1 ->
+  False.
+Proof.
+  intros. assert (yprog_length yprog1 > yprog_length yprog2).
+  { apply yprog_step_decreases with env1 env2. assumption. }
+  assert (yprog_length yprog2 > yprog_length yprog1).
+  { apply yprog_step_decreases with env2 env1. assumption. }
+  lia.
+Qed.
+
+Theorem no_smallstep_self :
+  forall (env : Env) (yprog : YStmt),
+  YMultiStep yprog env yprog env -> False.
+Proof.
+  intros. apply step_not_commutative with env env yprog yprog.
+  assumption. assumption.
+Qed.
+
+Theorem smallstep_no_come_back :
+ forall (env1 env2 env3 : Env) (yprog1 yprog2 yprog3: YStmt),
+  YMultiStep yprog1 env1 yprog2 env2 ->
+  YMultiStep yprog2 env2 yprog3 env3 ->
+  YMultiStep yprog3 env3 yprog1 env1 ->
+  False.
+Proof.
+  intros. assert (YMultiStep yprog1 env1 yprog1 env1).
+  { apply YMultiStep_trans with yprog2 env2. assumption. 
+    apply YMultiStep_trans with yprog3 env3. assumption. assumption. }
+  apply no_smallstep_self in H2. assumption. Qed.
+
 Theorem smallstep_is_atomic :
   forall (env1 env2 env3 : Env) (yprog1 yprog2 yprog3 : YStmt),
   YStep (yprog1, env1) (yprog3, env3) ->
   YMultiStep yprog1 env1 yprog2 env2 ->
   YMultiStep yprog2 env2 yprog3 env3 -> False.
 Proof.
-  intros.
-
-(*
-  intros. generalize dependent yprog2. induction H.
+  intros. generalize dependent yprog3. induction H0.
   - intros. assert ((yprog2, env2) = (yprog3, env3)).
-    { apply ysmallstep_is_unique with yprog1 env. assumption. assumption. }
-    subst. apply no_smallstep_self in H1. assumption.
-  - intros. apply IHYMultiStep_expr1 with yexpr0.
-    + assumption.
-    + apply YMultiStep_expr_trans with yexpr3.
-      * assumption. * assumption.
-*)
-Admitted.
+    { apply ysmallstep_is_unique with yprog1 env1. assumption. assumption. }
+    injection H2. intros. subst. apply no_smallstep_self in H1. assumption.
+  - intros. apply IHYMultiStep1 with yprog0. assumption.
+    apply YMultiStep_trans with yprog2 env2. assumption. assumption.
+Qed.
 
 Theorem y_steps_are_chained :
   forall (yprog1 yprog2 : YStmt) (env1 env2 : Env),
@@ -771,6 +798,8 @@ Proof.
         apply YMultiStep_smallStep. apply YStep_Seq_Assgn_store. 
       + destruct H0 as [n]. exists (str ⊢> n; env).
         apply YMultiStep_trans with (YSeq (YAssign str (YConst n)) YSkip) env.
+        -- admit.
+        -- admit.
         Admitted.
 (*
         apply y_step_seq_assgn_reduce.
