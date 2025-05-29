@@ -768,45 +768,71 @@ Proof.
     + apply yskip_dont_step in H0. exfalso. assumption.
     + destruct H0. sauto. Qed.
 
+Theorem y_step_seq_assgn_reduce : 
+  forall (env env' : Env) (yexpr : YExpr) (str : string) (yprog2 : YStmt),
+  YMultiStep (YAssign str yexpr) env YSkip env' ->
+  YMultiStep (YSeq (YAssign str yexpr) yprog2) env yprog2 env'.
+Proof. Admitted.
+(*
+  intros. induction H.
+  - apply YMultiStep_smallStep. apply YStep_Assgn_reduce. assumption.
+  - apply YMultiStep_trans with (YAssign str yexpr2) env1.
+    * assumption.
+    * assumption.
+Qed. *)
+
+Theorem remove_last_skip :
+  forall (yprog1 yprog2 : YStmt) (env1 env2 : Env),
+  YMultiStep (YSeq yprog1 YSkip) env1 yprog2 env2 <->
+  YMultiStep yprog1 env1 yprog2 env2.
+Proof. Admitted.
+
+Theorem well_defined_remains_after_step :
+  forall (yprog1 yprog2 : YStmt) (env1 env2 : Env),
+  well_defined env1 (YSeq yprog1 yprog2) ->
+  YMultiStep yprog1 env1 YSkip env2 ->
+  well_defined env2 yprog2.
+Proof. Admitted.
+
 Theorem y_finalstep_exists : forall (yprog : YStmt) (env1 : Env),
   well_defined env1 yprog ->
   (exists env2, YisFinalStateOf yprog env1 env2)
   \/ yprog = YSkip.
 Proof.
-  intros. unfold YisFinalStateOf. induction H.
+  unfold YisFinalStateOf. induction yprog; intros env1.
   - right. reflexivity.
-  - left. Search well_defined_expr. apply expr_multistep_always_reachs_end in H.
-    destruct H. destruct H as [n]. subst.
-    * exists (str ⊢> n; env). apply YMultiStep_smallStep.
-      apply YStep_Assgn_store.
-    * destruct H as [n]. exists (str ⊢> n; env). 
-      apply YMultiStep_trans with (YAssign str (YConst n)) env.
-      + apply y_step_assgn_reduce. assumption.
-      + apply YMultiStep_smallStep. apply YStep_Assgn_store.
-  - destruct IHwell_defined.
-    * left. destruct H0 as [env']. exists env'. 
-      apply YMultiStep_trans with yprog env.
+  - left. Search well_defined_expr. inversion H; subst.
+    apply expr_multistep_always_reachs_end in H2.
+    destruct H2.
+    * destruct H0 as [n]; subst. exists (s ⊢> n; env1).
+      apply YMultiStep_smallStep. apply YStep_Assgn_store.
+    * destruct H0 as [n]; subst. exists (s ⊢> n; env1).
+      Check y_step_assgn_reduce.
+      apply (y_step_assgn_reduce env1 y (YConst n) s) in H0.
+      apply YMultiStep_trans with (YAssign s (YConst n)) env1.
+      + assumption. + apply YMultiStep_smallStep. apply YStep_Assgn_store.
+  - left. inversion H; subst. apply IHyprog2 in H2.
+    destruct H2.
+    * destruct H0 as [env2]. exists env2. apply YMultiStep_trans with yprog2 env1.
       + apply YMultiStep_smallStep. apply YStep_Seq_Skip.
       + assumption.
-    * subst. left. exists env. apply YMultiStep_smallStep. apply YStep_Seq_Skip.
-  - left.
-    destruct IHwell_defined.
-    * admit.
-    * subst. apply expr_multistep_always_reachs_end in H0.
-      destruct H0. destruct H0 as [n]; subst.
-      + exists (str ⊢> n; env).
-        apply YMultiStep_smallStep. apply YStep_Seq_Assgn_store. 
-      + destruct H0 as [n]. exists (str ⊢> n; env).
-        apply YMultiStep_trans with (YSeq (YAssign str (YConst n)) YSkip) env.
-        -- admit.
-        -- admit.
-        Admitted.
-(*
-        apply y_step_seq_assgn_reduce.
-        -- assumption.
-        -- apply YMultiStep_smallStep. apply YStep_Seq_Assgn_store.
-*)
-
+    * subst. exists env1. apply YMultiStep_smallStep. apply YStep_Seq_Skip.
+    * inversion H; subst. 
+      assert (well_defined env1 (YAssign str yexpr)).
+      { apply WellDef_Assign. assumption. }
+      apply IHyprog1 in H0. destruct H0.
+      + destruct H0 as [env2].
+        assert (well_defined env2 yprog2).
+        { apply well_defined_remains_after_step with (YAssign str yexpr) env1.
+          assumption. assumption. }
+        apply (IHyprog2 env2) in H1. destruct H1.
+        --  destruct H1 as [env4]. exists env4.
+            apply YMultiStep_trans with yprog2 env2.
+            ** apply y_step_seq_assgn_reduce. assumption.
+            ** assumption.
+        -- subst. exists env2. rewrite -> remove_last_skip. assumption.
+      + discriminate.
+Qed.
 
 Lemma add_cannot_be_used_with_empty_stack :
   forall (xprog1 xprog2 : XProgram) (stack : XStack) (env1 env2 : Env),
