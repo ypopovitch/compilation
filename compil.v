@@ -829,7 +829,19 @@ Proof.
     * assumption.
 Qed. *)
 
+Theorem y_multistep_assign_reduce :
+  forall (yexpr : YExpr) (env : Env) (n : nat) (str : string),
+  YMultiStep_expr env yexpr  (YConst n) ->
+  YMultiStep (YAssign str yexpr) env (YAssign str (YConst n)) env.
+Proof.
+  Admitted.
 
+Theorem y_multistep_seq_assign_reduce :
+  forall (yexpr : YExpr) (env : Env) (n : nat) (str : string) (yprog2 : YStmt),
+  YMultiStep_expr env yexpr  (YConst n) ->
+  YMultiStep (YSeq (YAssign str yexpr) yprog2) env (YSeq (YAssign str (YConst n)) yprog2) env.
+Proof.
+  Admitted.
 
 Theorem y_sequence_is_like_piping_outputs :
   forall (yprog1 yprog2 : YStmt) (env1 env2 env3 : Env),
@@ -842,30 +854,32 @@ Proof.
   - apply yskip_dont_step in H0. exfalso. assumption.
   - assert ((exists n, YMultiStep_expr env1 y (YConst n)) 
             \/ (exists n, y = (YConst n))).
-    { admit. }
+    { inversion H. subst. apply expr_multistep_always_reachs_end in H7.
+      sauto. }
     destruct H2.
-    *
-(* 
-proof sktech
-first express env2 with env1 str and n, using 
-YMultiStep_expr env1 y (YConst n) and YMultiStep (YAssign s y) env1 YSkip env2
-to show that env2 is the result of storing y reduction in env1
-second show 
-YMultiStep (YSeq (YAssign s y) yprog2) env1 YSkip env3
-by trans
-YMultiStep (YSeq (YAssign s y) yprog2) env1 (YSeq (YAssign s (YConst n)) yprog2) env1)
--> ???
-YMultiStep (YSeq (YAssign s (YConst n)) yprog2) env1 yprog2 env2 
--> applying YStep constructor by knowing env2 expression
-YMultiStep yprog2 env2 YSkip env3 -> assumption
-
-*)
-
-
-(* end of the proof *)
+    * destruct H2 as [n].
+      assert (YMultiStep (YAssign s y) env1 (YAssign s (YConst n)) env1).
+      { apply y_multistep_assign_reduce. assumption. }
+      apply (y_steps_are_chained 
+            (YAssign s y) (YAssign s (YConst n)) env1 env1 H3 YSkip env2) in H0.
+      destruct H0.
+      + apply YMultiStep_trans with yprog2 env2.
+        -- apply YMultiStep_trans with (YSeq (YAssign s (YConst n)) yprog2) env1.
+            ** apply y_multistep_seq_assign_reduce. assumption.
+            ** inversion H0; subst. inversion H4; subst.
+                ++ apply YMultiStep_smallStep. apply YStep_Seq_Assgn_store.
+                ++ (* show that no step is between YAssign s YConst n and YSkip *) admit.
+        -- assumption.
+      + destruct H0.
+        -- apply yskip_dont_step in H0. exfalso. assumption.
+        -- destruct H0. discriminate.
     * destruct H2 as [n]; subst. 
       apply YMultiStep_trans with yprog2 env2.
-      + assert (env2 = (s ⊢> n; env1)). { admit. } subst.
+      + assert (env2 = (s ⊢> n; env1)). {
+        inversion H0; subst. inversion H2; subst.
+        -- reflexivity. 
+        -- (* show that no step is between YAssign s YConst n and YSkip, like above *) admit.
+        } subst.
         apply YMultiStep_smallStep. apply YStep_Seq_Assgn_store.
       + assumption.
   - inversion H.
