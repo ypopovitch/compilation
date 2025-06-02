@@ -1,5 +1,5 @@
 # compilation
-Verified compiler for a small subset of C. The compiler itself and its specifications are expressed with Rocq Prover. The final compiler code is then extracted to OCaml. The verification shows the absence of runtime error and the preservation of semantic.
+Formally-verified compiler for a small subset of C. The compiler itself and its specifications are expressed with Rocq Prover. The final compiler code is extracted to OCaml. The verification shows the absence of runtime error and the preservation of semantic.
 
 The first version will consider only variable assignment, with addition and multiplication, using (infinite) nat type from Rocq. More features can be added to the C subset once the specification is proven.
 
